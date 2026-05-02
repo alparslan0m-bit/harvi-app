@@ -10,6 +10,14 @@ export interface Module {
   name: string;
   year_id: string;
   order: number;
+  subjects: Subject[];
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  module_id: string;
+  order: number;
   lectures: Lecture[];
 }
 
@@ -17,7 +25,7 @@ export interface Lecture {
   id: string;
   name: string;
   external_id: string;
-  module_id: string;
+  subject_id: string;
   question_count?: number;
 }
 

@@ -11,23 +11,27 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ModuleCard } from "@/components/ModuleCard";
+import { LectureCard } from "@/components/LectureCard";
 import colors from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
 
-export default function YearScreen() {
+export default function SubjectScreen() {
   const themeColors = useColors();
   const insets = useSafeAreaInsets();
-  const { id, index: indexParam } = useLocalSearchParams<{ id: string; index: string }>();
+  const { id, yearIndex: yearIndexParam } = useLocalSearchParams<{ id: string; yearIndex: string }>();
   const { data: years } = useHierarchy();
-  const year = years?.find((y) => y.id === id);
-  const yearIndex = parseInt(indexParam ?? "0", 10);
+  const yearIndex = parseInt(yearIndexParam ?? "0", 10);
   const accent = (colors.yearGradients[yearIndex % colors.yearGradients.length] as [string, string])[0];
+
+  const subject = years
+    ?.flatMap((y) => y.modules)
+    .flatMap((m) => m.subjects)
+    .find((s) => s.id === id);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
-  if (!year) return null;
+  if (!subject) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: themeColors.background }}>
@@ -49,44 +53,50 @@ export default function YearScreen() {
           <Feather name="arrow-left" size={20} color={themeColors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: themeColors.foreground }]}>
-            {year.name}
+          <Text style={[styles.headerTitle, { color: themeColors.foreground }]} numberOfLines={2}>
+            {subject.name}
           </Text>
           <Text style={[styles.headerSub, { color: themeColors.mutedForeground }]}>
-            {year.modules.length} {year.modules.length === 1 ? "module" : "modules"}
+            {subject.lectures.length} {subject.lectures.length === 1 ? "lecture" : "lectures"}
           </Text>
         </View>
-        <View style={[styles.accentDot, { backgroundColor: accent }]} />
       </View>
 
       <ScrollView
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Progress hint */}
+        <View style={[styles.banner, { backgroundColor: accent + "12" }]}>
+          <View style={[styles.bannerDot, { backgroundColor: accent }]} />
+          <Text style={[styles.bannerText, { color: accent }]}>
+            Tap a lecture to start the quiz
+          </Text>
+        </View>
+
         <Text style={[styles.sectionLabel, { color: themeColors.mutedForeground }]}>
-          MODULES
+          LECTURES
         </Text>
 
-        {year.modules.map((mod, i) => (
-          <ModuleCard
-            key={mod.id}
-            module={mod}
+        {subject.lectures.map((lec, i) => (
+          <LectureCard
+            key={lec.id}
+            lecture={lec}
             index={i}
-            accent={accent}
             onPress={() =>
               router.push({
-                pathname: "/module/[id]",
-                params: { id: mod.id, yearIndex: String(yearIndex) },
+                pathname: "/quiz/[lectureId]",
+                params: { lectureId: lec.external_id ?? lec.id, lectureName: lec.name },
               })
             }
           />
         ))}
 
-        {year.modules.length === 0 && (
+        {subject.lectures.length === 0 && (
           <View style={styles.empty}>
-            <Feather name="inbox" size={36} color={themeColors.mutedForeground} />
+            <Feather name="book-open" size={36} color={themeColors.mutedForeground} />
             <Text style={[styles.emptyText, { color: themeColors.mutedForeground }]}>
-              No modules yet
+              No lectures yet
             </Text>
           </View>
         )}
@@ -112,10 +122,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.6 },
-  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 1 },
-  accentDot: { width: 10, height: 10, borderRadius: 5, marginBottom: 4 },
-  list: { paddingTop: 24 },
+  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5, lineHeight: 26 },
+  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  list: { paddingTop: 20 },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  bannerDot: { width: 6, height: 6, borderRadius: 3 },
+  bannerText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",

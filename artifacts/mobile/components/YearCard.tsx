@@ -22,7 +22,11 @@ export function YearCard({ year, index, onPress }: Props) {
   const scale = useSharedValue(1);
   const gradient = colors.yearGradients[index % colors.yearGradients.length] as [string, string];
 
-  const totalLectures = year.modules.reduce((sum, m) => sum + m.lectures.length, 0);
+  const totalSubjects = year.modules.reduce((sum, m) => sum + m.subjects.length, 0);
+  const totalLectures = year.modules.reduce(
+    (sum, m) => sum + m.subjects.reduce((s2, sub) => s2 + sub.lectures.length, 0),
+    0
+  );
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -49,8 +53,18 @@ export function YearCard({ year, index, onPress }: Props) {
           <Text style={styles.title}>{year.name}</Text>
           <View style={styles.meta}>
             <Text style={styles.metaText}>{year.modules.length} modules</Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>{totalLectures} lectures</Text>
+            {totalSubjects > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{totalSubjects} subjects</Text>
+              </>
+            )}
+            {totalLectures > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{totalLectures} lectures</Text>
+              </>
+            )}
           </View>
         </View>
         <View style={styles.decorCircle} />
@@ -78,9 +92,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   },
-  content: {
-    zIndex: 2,
-  },
+  content: { zIndex: 2 },
   badge: {
     alignSelf: "flex-start",
     backgroundColor: "rgba(255,255,255,0.25)",
@@ -102,20 +114,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 8,
   },
-  meta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  metaText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
-  metaDot: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-  },
+  meta: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  metaText: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  metaDot: { color: "rgba(255,255,255,0.5)", fontSize: 13 },
   decorCircle: {
     position: "absolute",
     width: 120,

@@ -8,17 +8,17 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useColors } from "@/hooks/useColors";
-import { Lecture } from "@/types";
+import { Subject } from "@/types";
 
 interface Props {
-  lecture: Lecture;
+  subject: Subject;
   index: number;
   onPress: () => void;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function LectureCard({ lecture, index, onPress }: Props) {
+export function SubjectCard({ subject, index, onPress }: Props) {
   const colors = useColors();
   const scale = useSharedValue(1);
 
@@ -37,18 +37,16 @@ export function LectureCard({ lecture, index, onPress }: Props) {
       <View style={[styles.indexBadge, { backgroundColor: colors.muted }]}>
         <Text style={[styles.indexText, { color: colors.mutedForeground }]}>{index + 1}</Text>
       </View>
-      <View style={styles.textCol}>
+      <View style={styles.text}>
         <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
-          {lecture.name}
+          {subject.name}
         </Text>
-        {lecture.question_count != null && lecture.question_count > 0 && (
-          <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-            {lecture.question_count} questions
-          </Text>
-        )}
+        <Text style={[styles.count, { color: colors.mutedForeground }]}>
+          {subject.lectures.length} {subject.lectures.length === 1 ? "lecture" : "lectures"}
+        </Text>
       </View>
-      <View style={[styles.quizIcon, { backgroundColor: colors.primary + "15" }]}>
-        <Feather name="play-circle" size={18} color={colors.primary} />
+      <View style={[styles.arrow, { backgroundColor: colors.muted }]}>
+        <Feather name="chevron-right" size={16} color={colors.primary} />
       </View>
     </AnimatedTouchable>
   );
@@ -71,25 +69,25 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   indexBadge: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   indexText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  textCol: { flex: 1, gap: 2 },
+  text: { flex: 1, gap: 2 },
   title: {
     fontSize: 15,
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Inter_600SemiBold",
     letterSpacing: -0.2,
     lineHeight: 20,
   },
-  meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  quizIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+  count: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  arrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
