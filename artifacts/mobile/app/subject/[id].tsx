@@ -12,17 +12,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LectureCard } from "@/components/LectureCard";
-import colors from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
 
 export default function SubjectScreen() {
-  const themeColors = useColors();
+  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id, yearIndex: yearIndexParam } = useLocalSearchParams<{ id: string; yearIndex: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { data: years } = useHierarchy();
-  const yearIndex = parseInt(yearIndexParam ?? "0", 10);
-  const accent = (colors.yearGradients[yearIndex % colors.yearGradients.length] as [string, string])[0];
 
   const subject = years
     ?.flatMap((y) => y.modules)
@@ -34,29 +31,24 @@ export default function SubjectScreen() {
   if (!subject) return null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
-      {/* Header */}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={[
           styles.header,
-          {
-            paddingTop: topPad + 12,
-            backgroundColor: themeColors.background,
-            borderBottomColor: themeColors.border,
-          },
+          { paddingTop: topPad + 12, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: themeColors.muted }]}
+          style={[styles.backBtn, { backgroundColor: colors.muted }]}
         >
-          <Feather name="arrow-left" size={20} color={themeColors.foreground} />
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: themeColors.foreground }]} numberOfLines={2}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
             {subject.name}
           </Text>
-          <Text style={[styles.headerSub, { color: themeColors.mutedForeground }]}>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
             {subject.lectures.length} {subject.lectures.length === 1 ? "lecture" : "lectures"}
           </Text>
         </View>
@@ -66,17 +58,7 @@ export default function SubjectScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Progress hint */}
-        <View style={[styles.banner, { backgroundColor: accent + "12" }]}>
-          <View style={[styles.bannerDot, { backgroundColor: accent }]} />
-          <Text style={[styles.bannerText, { color: accent }]}>
-            Tap a lecture to start the quiz
-          </Text>
-        </View>
-
-        <Text style={[styles.sectionLabel, { color: themeColors.mutedForeground }]}>
-          LECTURES
-        </Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>LECTURES</Text>
 
         {subject.lectures.map((lec, i) => (
           <LectureCard
@@ -94,10 +76,8 @@ export default function SubjectScreen() {
 
         {subject.lectures.length === 0 && (
           <View style={styles.empty}>
-            <Feather name="book-open" size={36} color={themeColors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: themeColors.mutedForeground }]}>
-              No lectures yet
-            </Text>
+            <Feather name="book-open" size={36} color={colors.mutedForeground} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No lectures yet</Text>
           </View>
         )}
       </ScrollView>
@@ -114,40 +94,18 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headerText: { flex: 1 },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5, lineHeight: 26 },
   headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  list: { paddingTop: 20 },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  bannerDot: { width: 6, height: 6, borderRadius: 3 },
-  bannerText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1.2,
     marginHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  empty: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 12,
-  },
+  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });

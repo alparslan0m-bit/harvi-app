@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
@@ -7,21 +7,20 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { useColors } from "@/hooks/useColors";
+import colors from "@/constants/colors";
 import { Module } from "@/types";
 
 interface Props {
   module: Module;
   index: number;
-  accent: string;
   onPress: () => void;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function ModuleCard({ module, index, accent, onPress }: Props) {
-  const colors = useColors();
+export function ModuleCard({ module, index, onPress }: Props) {
   const scale = useSharedValue(1);
+  const gradient = colors.yearGradients[index % colors.yearGradients.length] as [string, string];
 
   const totalLectures = module.subjects.reduce((sum, s) => sum + s.lectures.length, 0);
 
@@ -31,41 +30,36 @@ export function ModuleCard({ module, index, accent, onPress }: Props) {
 
   return (
     <AnimatedTouchable
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, animStyle]}
+      style={[styles.card, animStyle]}
       onPress={onPress}
       onPressIn={() => { scale.value = withSpring(0.97, { damping: 20 }); }}
       onPressOut={() => { scale.value = withSpring(1, { damping: 20 }); }}
       activeOpacity={1}
     >
-      {/* Left accent stripe */}
-      <View style={[styles.stripe, { backgroundColor: accent }]} />
-
-      <View style={styles.inner}>
-        <View style={[styles.indexBadge, { backgroundColor: accent + "20" }]}>
-          <Text style={[styles.indexText, { color: accent }]}>{index + 1}</Text>
-        </View>
-
-        <View style={styles.text}>
-          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
-            {module.name}
-          </Text>
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <View style={styles.content}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>Module {index + 1}</Text>
+          </View>
+          <Text style={styles.title}>{module.name}</Text>
           <View style={styles.meta}>
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-              {module.subjects.length} subjects
-            </Text>
+            <Text style={styles.metaText}>{module.subjects.length} subjects</Text>
             {totalLectures > 0 && (
               <>
-                <Text style={[styles.dot, { color: colors.mutedForeground }]}>·</Text>
-                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                  {totalLectures} lectures
-                </Text>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{totalLectures} lectures</Text>
               </>
             )}
           </View>
         </View>
-
-        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-      </View>
+        <View style={styles.decorCircle} />
+        <View style={styles.decorCircle2} />
+      </LinearGradient>
     </AnimatedTouchable>
   );
 }
@@ -73,47 +67,62 @@ export function ModuleCard({ module, index, accent, onPress }: Props) {
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: 20,
-    marginBottom: 12,
-    borderRadius: 18,
-    borderWidth: 1,
+    marginBottom: 14,
+    borderRadius: 24,
     overflow: "hidden",
-    flexDirection: "row",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  stripe: {
-    width: 4,
-    alignSelf: "stretch",
+  gradient: {
+    padding: 24,
+    minHeight: 130,
+    overflow: "hidden",
+    position: "relative",
   },
-  inner: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    gap: 12,
+  content: { zIndex: 2 },
+  badge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 100,
+    marginBottom: 10,
   },
-  indexBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  indexText: {
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
-  },
-  text: { flex: 1, gap: 3 },
-  title: {
-    fontSize: 16,
+  badgeText: {
+    color: "#fff",
+    fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: -0.3,
-    lineHeight: 22,
+    letterSpacing: 0.5,
   },
-  meta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  dot: { fontSize: 12 },
+  title: {
+    color: "#fff",
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  meta: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  metaText: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  metaDot: { color: "rgba(255,255,255,0.5)", fontSize: 13 },
+  decorCircle: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    right: -30,
+    top: -30,
+  },
+  decorCircle2: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    right: 50,
+    bottom: -20,
+  },
 });

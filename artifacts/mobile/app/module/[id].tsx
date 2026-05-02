@@ -12,17 +12,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SubjectCard } from "@/components/SubjectCard";
-import colors from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
 
 export default function ModuleScreen() {
-  const themeColors = useColors();
+  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id, yearIndex: yearIndexParam } = useLocalSearchParams<{ id: string; yearIndex: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { data: years } = useHierarchy();
-  const yearIndex = parseInt(yearIndexParam ?? "0", 10);
-  const accent = (colors.yearGradients[yearIndex % colors.yearGradients.length] as [string, string])[0];
 
   const module = years?.flatMap((y) => y.modules).find((m) => m.id === id);
 
@@ -33,36 +30,31 @@ export default function ModuleScreen() {
   const totalLectures = module.subjects.reduce((sum, s) => sum + s.lectures.length, 0);
 
   return (
-    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
-      {/* Header */}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={[
           styles.header,
-          {
-            paddingTop: topPad + 12,
-            backgroundColor: themeColors.background,
-            borderBottomColor: themeColors.border,
-          },
+          { paddingTop: topPad + 12, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[styles.backBtn, { backgroundColor: themeColors.muted }]}
+          style={[styles.backBtn, { backgroundColor: colors.muted }]}
         >
-          <Feather name="arrow-left" size={20} color={themeColors.foreground} />
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: themeColors.foreground }]} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
             {module.name}
           </Text>
           <View style={styles.headerMeta}>
-            <Text style={[styles.headerSub, { color: themeColors.mutedForeground }]}>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
               {module.subjects.length} subjects
             </Text>
             {totalLectures > 0 && (
               <>
-                <Text style={[styles.dot, { color: themeColors.mutedForeground }]}>·</Text>
-                <Text style={[styles.headerSub, { color: themeColors.mutedForeground }]}>
+                <Text style={[styles.dot, { color: colors.mutedForeground }]}>·</Text>
+                <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
                   {totalLectures} lectures
                 </Text>
               </>
@@ -75,15 +67,7 @@ export default function ModuleScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Accent banner */}
-        <View style={[styles.banner, { backgroundColor: accent + "12" }]}>
-          <View style={[styles.bannerDot, { backgroundColor: accent }]} />
-          <Text style={[styles.bannerText, { color: accent }]}>Select a subject to view lectures</Text>
-        </View>
-
-        <Text style={[styles.sectionLabel, { color: themeColors.mutedForeground }]}>
-          SUBJECTS
-        </Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>SUBJECTS</Text>
 
         {module.subjects.map((sub, i) => (
           <SubjectCard
@@ -91,20 +75,15 @@ export default function ModuleScreen() {
             subject={sub}
             index={i}
             onPress={() =>
-              router.push({
-                pathname: "/subject/[id]",
-                params: { id: sub.id, yearIndex: String(yearIndex) },
-              })
+              router.push({ pathname: "/subject/[id]", params: { id: sub.id } })
             }
           />
         ))}
 
         {module.subjects.length === 0 && (
           <View style={styles.empty}>
-            <Feather name="inbox" size={36} color={themeColors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: themeColors.mutedForeground }]}>
-              No subjects yet
-            </Text>
+            <Feather name="inbox" size={36} color={colors.mutedForeground} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No subjects yet</Text>
           </View>
         )}
       </ScrollView>
@@ -121,42 +100,20 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headerText: { flex: 1 },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   headerMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 1 },
   headerSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
   dot: { fontSize: 13 },
-  list: { paddingTop: 20 },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  bannerDot: { width: 6, height: 6, borderRadius: 3 },
-  bannerText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1.2,
     marginHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  empty: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 12,
-  },
+  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });
