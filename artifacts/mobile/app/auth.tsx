@@ -14,17 +14,42 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContext";
+import { useColors } from "@/hooks/useColors";
+
+function GoogleIcon() {
+  return (
+    <View style={googleIconStyles.container}>
+      {/* G logo using colored bars */}
+      <Text style={googleIconStyles.g}>G</Text>
+    </View>
+  );
+}
+
+const googleIconStyles = StyleSheet.create({
+  container: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  g: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: "#4285F4",
+    letterSpacing: -0.5,
+  },
+});
 
 export default function AuthScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -46,6 +71,23 @@ export default function AuthScreen() {
       setLoading(false);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace("/(tabs)");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const { error: err } = await signInWithGoogle();
+
+    setGoogleLoading(false);
+    if (err) {
+      setError(err);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } else {
+      // Session is set via onAuthStateChange — router.replace handled by index
       router.replace("/(tabs)");
     }
   };
@@ -75,7 +117,42 @@ export default function AuthScreen() {
         </View>
 
         <View style={styles.form}>
-          <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          {/* Google Sign-In */}
+          <TouchableOpacity
+            style={[
+              styles.googleBtn,
+              { borderColor: colors.border, backgroundColor: colors.background },
+            ]}
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+            activeOpacity={0.85}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color={colors.mutedForeground} size="small" />
+            ) : (
+              <>
+                <GoogleIcon />
+                <Text style={[styles.googleBtnText, { color: colors.foreground }]}>
+                  Continue with Google
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* Email */}
+          <View
+            style={[
+              styles.inputWrap,
+              { borderColor: colors.border, backgroundColor: colors.card },
+            ]}
+          >
             <Feather name="mail" size={18} color={colors.mutedForeground} />
             <TextInput
               style={[styles.input, { color: colors.foreground }]}
@@ -89,7 +166,13 @@ export default function AuthScreen() {
             />
           </View>
 
-          <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          {/* Password */}
+          <View
+            style={[
+              styles.inputWrap,
+              { borderColor: colors.border, backgroundColor: colors.card },
+            ]}
+          >
             <Feather name="lock" size={18} color={colors.mutedForeground} />
             <TextInput
               style={[styles.input, { color: colors.foreground }]}
@@ -110,7 +193,12 @@ export default function AuthScreen() {
           </View>
 
           {error && (
-            <View style={[styles.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fecaca" }]}>
+            <View
+              style={[
+                styles.errorBox,
+                { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
+              ]}
+            >
               <Feather name="alert-circle" size={14} color={colors.destructive} />
               <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
             </View>
@@ -119,7 +207,7 @@ export default function AuthScreen() {
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: colors.primary }]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -153,7 +241,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   inner: { flex: 1, paddingHorizontal: 24 },
-  header: { alignItems: "center", marginBottom: 40 },
+  header: { alignItems: "center", marginBottom: 36 },
   logoMark: {
     width: 72,
     height: 72,
@@ -179,6 +267,33 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   form: { gap: 12 },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 15,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  googleBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: -0.2,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 2,
+  },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
