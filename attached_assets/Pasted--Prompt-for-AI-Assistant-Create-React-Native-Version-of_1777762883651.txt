@@ -1,0 +1,103 @@
+# Prompt for AI Assistant: Create React Native Version of Harvi
+
+## Project Overview
+You are tasked with building a cross-platform mobile application using **React Native (Expo)** that is a 1:1 replica in terms of features, logic, and design of the "Harvi" web application. Harvi is a medical education platform focusing on high-performance quiz delivery with a "Native White" premium aesthetic.
+
+## Core Tech Stack (Target)
+- **Framework**: Expo (Managed Workflow)
+- **Navigation**: Expo Router
+- **Backend**: Supabase (Auth, Database, Edge Functions)
+- **Styling**: NativeWind (Tailwind CSS for React Native) or standard StyleSheet
+- **Animations**: React Native Reanimated & Moti
+- **Icons**: Lucide React Native
+- **Storage**: Expo SecureStore (for session) and AsyncStorage (for cache)
+
+---
+
+## 1. Features to Implement
+
+### A. Authentication
+- **Provider**: Supabase Auth.
+- **Flow**: Simple Login/Signup. Support for Email/Password and ideally Magic Link.
+- **State**: Persistent session management.
+
+### B. Content Hierarchy (The Navigator)
+- **Data Source**: Replicate the structure found in the web app's `hierarchy.json`.
+- **Navigation**:
+  - **Level 1**: Years (e.g., Year 1, Year 2).
+  - **Level 2**: Modules/Subjects within a Year.
+  - **Level 3**: Lectures within a Subject.
+- **UI**: Use "Bento-style" cards for Years and clean List-style cards for Lectures.
+
+### C. Quiz Engine (The Core)
+- **Loading State**: Implement a "Warming Engines" transition screen.
+- **Security Logic**:
+  - Questions are fetched from Supabase.
+  - **IMPORTANT**: Answers and explanations are XOR-obfuscated on the server. You must implement the decryption logic in React Native (refer to `lib/crypto/quiz-crypto.ts` in the web app).
+- **Quiz Flow**:
+  - Progress bar at the top.
+  - Multi-choice questions.
+  - Instant feedback: Show correct/incorrect selection with haptic feedback.
+  - Show explanation after selection.
+- **Submission**: Submit results to Supabase `quiz_results` table via an Edge Function or direct client call.
+
+### D. Statistics & Analytics
+- **Dashboard**:
+  - Key Metrics: Total Quizzes, Total Questions, Average Score, Streak, Best Score.
+  - **Weekly Activity Chart**: A bar chart showing quiz counts over the last 7 days.
+  - **Subject Mastery**: A list showing percentage mastery per subject.
+  - **Recent Results**: A scrollable history of past quiz attempts.
+- **Data**: Fetch via the Supabase RPC `get_user_full_stats`.
+
+### E. User Profile & Settings
+- **Features**:
+  - User details.
+  - Feedback Submission (saves to Supabase `feedback` table).
+  - "Clear History" functionality.
+  - Logout.
+
+---
+
+## 2. Design System: "Native White"
+The app MUST feel like a premium, native iOS/Android application.
+- **Background**: Pure white (`#FFFFFF`).
+- **Accent**: Sky Blue (`#0ea5e9`).
+- **Cards**: Use subtle borders (`border-gray-100/60`), soft shadows, and large border radii (`rounded-[24px]`).
+- **Gradients**: Use specific linear gradients for Year Cards:
+  - Azure: `#0ea5e9` to `#0284c7`
+  - Emerald: `#10b981` to `#059669`
+  - Amber: `#f59e0b` to `#d97706`
+  - Amethyst: `#8b5cf6` to `#7c3aed`
+- **Typography**: Use system fonts with negative letter spacing (`-0.011em` for body, `-0.04em` for headings) for a "tight" native feel.
+- **Animations**:
+  - Smooth page transitions using Expo Router.
+  - Micro-interactions on button presses (scale down to 0.98).
+  - Fade-in-up animations for list items.
+
+---
+
+## 3. Technical Requirements & Logic References
+
+### Decryption Logic (XOR)
+The `secure` field in the question object contains the encrypted answer.
+Refer to `lib/crypto/quiz-crypto.ts` in the source for the exact XOR implementation.
+
+### Data Models
+- **Lecture**: `{ id, name, external_id, questions: Question[] }`
+- **Question**: `{ id, text, options: string[], secure: string }`
+- **Quiz Result**: `{ user_id, lecture_id, score, total_questions, correct_answers }`
+
+### Optimization
+- **Offline Mode**: Cache the hierarchy and recent results locally.
+- **Haptics**: Use `expo-haptics` for feedback on quiz answers and button presses.
+- **Safe Areas**: Use `react-native-safe-area-context` to handle notches and home indicators.
+
+---
+
+## 4. Implementation Steps for the AI
+1. **Setup**: Initialize Expo project with Expo Router and NativeWind.
+2. **Supabase**: Configure `supabase-js` and Auth providers.
+3. **Hierarchy**: Implement the navigation flow (Year -> Subject -> Lecture).
+4. **Quiz Engine**: Build the question renderer with XOR decryption and result submission.
+5. **Stats**: Implement the dashboard using `react-native-wagmi-charts` or similar for the activity chart.
+6. **Polish**: Apply the "Native White" styling and Reanimated transitions.
