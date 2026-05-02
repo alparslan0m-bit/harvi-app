@@ -1,11 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,25 +23,14 @@ import { useColors } from "@/hooks/useColors";
 function GoogleIcon() {
   return (
     <View style={googleIconStyles.container}>
-      {/* G logo using colored bars */}
       <Text style={googleIconStyles.g}>G</Text>
     </View>
   );
 }
 
 const googleIconStyles = StyleSheet.create({
-  container: {
-    width: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  g: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-    color: "#4285F4",
-    letterSpacing: -0.5,
-  },
+  container: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  g: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#4285F4", letterSpacing: -0.5 },
 });
 
 export default function AuthScreen() {
@@ -52,6 +44,10 @@ export default function AuthScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+
+  // Compute the exact redirect URL for this device/environment
+  const redirectUrl = Linking.createURL("/auth/callback");
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -87,7 +83,6 @@ export default function AuthScreen() {
       setError(err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
-      // Session is set via onAuthStateChange — router.replace handled by index
       router.replace("/(tabs)");
     }
   };
@@ -97,14 +92,16 @@ export default function AuthScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <View
-        style={[
+      <ScrollView
+        contentContainerStyle={[
           styles.inner,
           {
             paddingTop: insets.top + (Platform.OS === "web" ? 67 : 40),
-            paddingBottom: insets.bottom + 24,
+            paddingBottom: insets.bottom + 40,
           },
         ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <View style={[styles.logoMark, { backgroundColor: colors.primary }]}>
@@ -138,6 +135,72 @@ export default function AuthScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {/* Setup helper — tap to reveal the redirect URL to copy */}
+          <TouchableOpacity
+            style={[
+              styles.setupToggle,
+              {
+                backgroundColor: showSetup ? "#eff6ff" : colors.muted,
+                borderColor: showSetup ? "#bfdbfe" : colors.border,
+              },
+            ]}
+            onPress={() => setShowSetup((v) => !v)}
+          >
+            <Feather
+              name={showSetup ? "chevron-up" : "info"}
+              size={14}
+              color={showSetup ? "#1d4ed8" : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.setupToggleText,
+                { color: showSetup ? "#1d4ed8" : colors.mutedForeground },
+              ]}
+            >
+              {showSetup ? "Hide Supabase setup" : "Google not working? Tap to see setup"}
+            </Text>
+          </TouchableOpacity>
+
+          {showSetup && (
+            <View style={[styles.setupBox, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
+              <Text style={styles.setupTitle}>
+                Add this URL to Supabase → Authentication → URL Configuration → Redirect URLs:
+              </Text>
+
+              {/* Selectable URL box */}
+              <TouchableOpacity
+                style={styles.urlBox}
+                onLongPress={() => {
+                  Alert.alert(
+                    "Redirect URL",
+                    redirectUrl,
+                    [{ text: "OK" }]
+                  );
+                }}
+                onPress={() => {
+                  Alert.alert(
+                    "Copy this URL",
+                    redirectUrl,
+                    [{ text: "OK" }]
+                  );
+                }}
+              >
+                <Text style={styles.urlText} selectable>
+                  {redirectUrl}
+                </Text>
+                <Feather name="copy" size={14} color="#1d4ed8" />
+              </TouchableOpacity>
+
+              <Text style={styles.setupNote}>
+                Also add:{"\n"}
+                • <Text style={styles.monoSmall}>mobile://auth/callback</Text>
+                {"\n"}
+                • <Text style={styles.monoSmall}>exp://**</Text> (wildcard for Expo Go){"\n\n"}
+                Then in Supabase → Auth → Providers → Google, make sure Google is enabled and your OAuth credentials are set.
+              </Text>
+            </View>
+          )}
 
           {/* Divider */}
           <View style={styles.divider}>
@@ -233,14 +296,14 @@ export default function AuthScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  inner: { flex: 1, paddingHorizontal: 24 },
+  inner: { paddingHorizontal: 24 },
   header: { alignItems: "center", marginBottom: 36 },
   logoMark: {
     width: 72,
@@ -255,17 +318,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  appName: {
-    fontSize: 34,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -1.2,
-    marginBottom: 6,
-  },
-  tagline: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    letterSpacing: -0.2,
-  },
+  appName: { fontSize: 34, fontFamily: "Inter_700Bold", letterSpacing: -1.2, marginBottom: 6 },
+  tagline: { fontSize: 15, fontFamily: "Inter_400Regular", letterSpacing: -0.2 },
   form: { gap: 12 },
   googleBtn: {
     flexDirection: "row",
@@ -281,10 +335,53 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  googleBtnText: {
-    fontSize: 15,
+  googleBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", letterSpacing: -0.2 },
+  setupToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  setupToggleText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
+  setupBox: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  setupTitle: {
+    fontSize: 12,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: -0.2,
+    color: "#1e40af",
+    lineHeight: 16,
+  },
+  urlBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#dbeafe",
+    borderRadius: 8,
+    padding: 10,
+  },
+  urlText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#1d4ed8",
+    lineHeight: 16,
+  },
+  setupNote: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "#1e40af",
+    lineHeight: 17,
+  },
+  monoSmall: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
   },
   divider: {
     flexDirection: "row",
@@ -303,11 +400,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-  },
+  input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -316,11 +409,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  errorText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
+  errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   btn: {
     paddingVertical: 16,
     borderRadius: 14,
@@ -332,23 +421,8 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-  btnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: -0.3,
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 8,
-  },
-  switchText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  switchLink: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
+  btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold", letterSpacing: -0.3 },
+  switchRow: { flexDirection: "row", justifyContent: "center", marginTop: 8 },
+  switchText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
