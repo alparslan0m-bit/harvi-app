@@ -1,0 +1,51 @@
+export interface Year {
+  id: string;
+  name: string;
+  order: number;
+  modules: Module[];
+}
+
+export interface Module {
+  id: string;
+  name: string;
+  year_id: string;
+  order: number;
+  lectures: Lecture[];
+}
+
+export interface Lecture {
+  id: string;
+  name: string;
+  external_id: string;
+  module_id: string;
+  question_count?: number;
+}
+
+export interface Question {
+  id: string;
+  text: string;
+  options: string[];
+  secure: string;
+}
+
+export interface QuizResult {
+  id: string;
+  user_id: string;
+  lecture_id: string;
+  lecture_name: string;
+  score: number;
+  total_questions: number;
+  correct_answers: number;
+  created_at: string;
+}
+
+export interface UserStats {
+  total_quizzes: number;
+  total_questions: number;
+  average_score: number;
+  best_score: number;
+  streak: number;
+  weekly_activity: { day: string; count: number }[];
+  subject_mastery: { subject: string; mastery: number }[];
+  recent_results: QuizResult[];
+}
