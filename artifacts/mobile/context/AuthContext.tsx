@@ -82,13 +82,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async (): Promise<{ error: string | null }> => {
     try {
+      // This URL is what Supabase will redirect to after Google auth.
+      // It must be added to Supabase → Authentication → URL Configuration → Redirect URLs.
       const redirectTo = Linking.createURL("/auth/callback");
+      console.log("[Harvi] Google OAuth redirect URL:", redirectTo);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo,
           skipBrowserRedirect: true,
+          queryParams: {
+            // Force account picker every time
+            prompt: "select_account",
+          },
         },
       });
 
@@ -96,20 +103,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error?.message ?? "Could not start Google sign-in" };
       }
 
+      // openAuthSessionAsync intercepts any redirect that starts with redirectTo
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      console.log("[Harvi] OAuth result type:", result.type);
 
       if (result.type === "success" && result.url) {
-        const url = result.url;
-        // Try PKCE code exchange first
-        const codeMatch = url.match(/code=([^&]+)/);
+        const returnedUrl = result.url;
+        console.log("[Harvi] OAuth returned URL:", returnedUrl);
+
+        // Try PKCE code exchange first (Supabase default flow)
+        const codeMatch = returnedUrl.match(/[?&#]code=([^&]+)/);
         if (codeMatch) {
-          const { error: exchError } = await supabase.auth.exchangeCodeForSession(codeMatch[1]);
+          const { error: exchError } = await supabase.auth.exchangeCodeForSession(
+            decodeURIComponent(codeMatch[1])
+          );
           if (exchError) return { error: exchError.message };
           return { error: null };
         }
-        // Fallback: fragment tokens
-        const hash = url.split("#")[1] ?? "";
-        const params = new URLSearchParams(hash);
+
+        // Fallback: implicit tokens in URL fragment
+        const fragmentPart = returnedUrl.split("#")[1] ?? "";
+        const queryPart = returnedUrl.split("?")[1]?.split("#")[0] ?? "";
+        const params = new URLSearchParams(fragmentPart || queryPart);
         const access_token = params.get("access_token");
         const refresh_token = params.get("refresh_token");
         if (access_token && refresh_token) {
@@ -120,11 +135,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (sessError) return { error: sessError.message };
           return { error: null };
         }
-        return { error: "Authentication incomplete. Please try again." };
+
+        return {
+          error:
+            "Redirect URL not configured in Supabase.\n\nAdd this to Supabase → Auth → URL Configuration → Redirect URLs:\n" +
+            redirectTo,
+        };
       }
 
       if (result.type === "cancel" || result.type === "dismiss") {
-        return { error: null }; // user cancelled, not an error
+        return { error: null };
       }
 
       return { error: "Sign-in was not completed." };
