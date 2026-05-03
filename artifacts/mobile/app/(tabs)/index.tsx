@@ -98,7 +98,6 @@ export default function LearnScreen() {
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
           <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
-          <Text style={[styles.subtitle, { color: colors.primary }]}>Browse your study materials</Text>
         </View>
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} size="large" />
@@ -115,7 +114,6 @@ export default function LearnScreen() {
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
           <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
-          <Text style={[styles.subtitle, { color: colors.primary }]}>Browse your study materials</Text>
         </View>
         <ErrorState error={error as Error} onRetry={refetch} />
       </View>
@@ -129,9 +127,6 @@ export default function LearnScreen() {
       {/* ── Fixed header ──────────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
-        <Text style={[styles.subtitle, { color: colors.primary }]}>
-          {yearCount > 0 ? `${yearCount} year${yearCount !== 1 ? "s" : ""} · Pick one to start` : "Browse your study materials"}
-        </Text>
       </View>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
