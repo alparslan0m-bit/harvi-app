@@ -34,15 +34,31 @@ export default function StatsScreen() {
     );
   }
 
-  if (error || !stats) {
+  if (error) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Feather name="bar-chart-2" size={40} color={colors.mutedForeground} />
+        <Feather name="alert-circle" size={40} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+          Couldn't load stats
+        </Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          {(error as Error).message}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!stats || stats.total_quizzes === 0) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <View style={[styles.emptyIcon, { backgroundColor: "#f0f9ff" }]}>
+          <Feather name="bar-chart-2" size={32} color={colors.primary} />
+        </View>
         <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
           No stats yet
         </Text>
         <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-          Complete a quiz to see your performance data.
+          Complete your first quiz to start tracking your performance and progress.
         </Text>
       </View>
     );
@@ -238,6 +254,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   scoreText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   emptyText: {
     fontSize: 14,
