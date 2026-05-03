@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { useScrollToTop } from "@react-navigation/native";
 import { router } from "expo-router";
-import React from "react";
+import React, { useRef } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -26,6 +27,9 @@ export default function StatsScreen() {
   const { data: stats, isLoading, error } = useStats(user?.id);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long",
@@ -90,6 +94,7 @@ export default function StatsScreen() {
       {/* ── Content ──────────────────────────────────────────────────── */}
       {!isLoading && !error && stats && stats.total_quizzes > 0 && (
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         >

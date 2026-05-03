@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { useScrollToTop } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -89,6 +90,9 @@ export default function LearnScreen() {
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
+
   if (isLoading || authLoading) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -132,6 +136,7 @@ export default function LearnScreen() {
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >

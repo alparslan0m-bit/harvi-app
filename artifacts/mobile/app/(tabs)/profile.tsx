@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import { useScrollToTop } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +29,9 @@ export default function ProfileScreen() {
   const [feedbackSent, setFeedbackSent] = useState(false);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
 
   const initial = (user?.email?.[0] ?? "U").toUpperCase();
   const memberSince = user?.created_at
@@ -88,6 +92,7 @@ export default function ProfileScreen() {
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
       >
