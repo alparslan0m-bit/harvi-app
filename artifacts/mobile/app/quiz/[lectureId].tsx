@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -37,6 +38,314 @@ import { loadQuestionsFromCache } from "@/lib/questionCache";
 import { enqueueQuizResult } from "@/lib/offlineQueue";
 import { supabase } from "@/lib/supabase";
 import { Question } from "@/types";
+
+// ── Result stat pill ─────────────────────────────────────────────────────────
+function StatPill({
+  value, label, color, icon,
+}: { value: number; label: string; color: string; icon: React.ComponentProps<typeof Feather>["name"] }) {
+  const colors = useColors();
+  return (
+    <View style={[rStyles.pill, { backgroundColor: color + "14", borderColor: color + "35" }]}>
+      <Feather name={icon} size={18} color={color} />
+      <Text style={[rStyles.pillNum, { color: colors.foreground }]}>{value}</Text>
+      <Text style={[rStyles.pillLabel, { color: colors.mutedForeground }]}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Results screen component ──────────────────────────────────────────────────
+function ResultsView({
+  score, correctCount, totalCount,
+  submitting, savedOffline, saveError,
+  lectureName, topPad,
+  onRetry, onReview, onHome,
+}: {
+  score: number; correctCount: number; totalCount: number;
+  submitting: boolean; savedOffline: boolean; saveError: string | null;
+  lectureName?: string; topPad: number;
+  onRetry: () => void; onReview: () => void; onHome: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  // Count-up animation
+  const [displayScore, setDisplayScore] = useState(0);
+  useEffect(() => {
+    let current = 0;
+    const step = Math.max(1, Math.ceil(score / 35));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, score);
+      setDisplayScore(current);
+      if (current >= score) clearInterval(timer);
+    }, 18);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [score]);
+
+  // Ring entrance
+  const ringScale = useSharedValue(0.55);
+  const ringOpacity = useSharedValue(0);
+  useEffect(() => {
+    ringScale.value = withSpring(1, { damping: 16, stiffness: 160 });
+    ringOpacity.value = withTiming(1, { duration: 450 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const ringAnim = useAnimatedStyle(() => ({
+    transform: [{ scale: ringScale.value }],
+    opacity: ringOpacity.value,
+  }));
+
+  // Score tier
+  const isExcellent = score >= 90;
+  const isGreat    = score >= 80;
+  const isGood     = score >= 70;
+  const isPassing  = score >= 60;
+
+  const ringColor = isExcellent || isGreat
+    ? "#059669"
+    : isGood
+    ? "#f59e0b"
+    : isPassing
+    ? "#f97316"
+    : "#dc2626";
+
+  const grade   = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+  const title   = isExcellent ? "Outstanding!" : isGreat ? "Well done!" : isGood ? "Good effort!" : isPassing ? "Keep going!" : "Keep practising!";
+  const message = isExcellent
+    ? "Exceptional! You've thoroughly mastered this material."
+    : isGreat
+    ? "Strong performance. You have a solid grasp of the content."
+    : isGood
+    ? "You're on the right track — a bit more practice and you'll ace it."
+    : isPassing
+    ? "You passed! Review the answers to close the remaining gaps."
+    : "Don't be discouraged. Study the review and try again — you'll improve.";
+
+  const wrongCount = totalCount - correctCount;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* ── Header ── */}
+      <View style={{ paddingTop: topPad + 12, paddingHorizontal: 20, paddingBottom: 8 }}>
+        <TouchableOpacity
+          onPress={onHome}
+          style={[rStyles.closeBtn, { backgroundColor: colors.muted }]}
+          activeOpacity={0.7}
+        >
+          <Feather name="x" size={18} color={colors.foreground} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[rStyles.scroll, { paddingBottom: insets.bottom + 48 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Score ring ── */}
+        <Animated.View style={[rStyles.ringWrap, ringAnim]}>
+          {/* Outer glow ring */}
+          <View style={[rStyles.ringOuter, { borderColor: ringColor + "28" }]}>
+            {/* Inner ring */}
+            <View style={[rStyles.ringInner, { borderColor: ringColor }]}>
+              {/* Score */}
+              <View style={rStyles.scoreRow}>
+                <Text style={[rStyles.scoreNum, { color: ringColor }]}>{displayScore}</Text>
+                <Text style={[rStyles.scorePct, { color: ringColor }]}>%</Text>
+              </View>
+              <Text style={[rStyles.gradeHint, { color: ringColor + "99" }]}>out of 100</Text>
+            </View>
+          </View>
+          {/* Grade badge */}
+          <View style={[rStyles.gradeBadge, { backgroundColor: ringColor }]}>
+            <Text style={rStyles.gradeText}>{grade}</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Title + lecture name ── */}
+        <Animated.View entering={FadeInDown.delay(200).duration(400).springify()} style={rStyles.titleGroup}>
+          <Text style={[rStyles.title, { color: colors.foreground }]}>{title}</Text>
+          {!!lectureName && (
+            <Text style={[rStyles.subtitle, { color: colors.mutedForeground }]} numberOfLines={2}>
+              {lectureName}
+            </Text>
+          )}
+        </Animated.View>
+
+        {/* ── Stat pills ── */}
+        <Animated.View entering={FadeInDown.delay(300).duration(400).springify()} style={rStyles.pills}>
+          <StatPill value={correctCount} label="Correct"   color="#059669"   icon="check-circle" />
+          <StatPill value={wrongCount}   label="Wrong"     color="#dc2626"   icon="x-circle" />
+          <StatPill value={totalCount}   label="Total"     color={colors.primary} icon="help-circle" />
+        </Animated.View>
+
+        {/* ── Feedback card ── */}
+        <Animated.View
+          entering={FadeInDown.delay(400).duration(400).springify()}
+          style={[rStyles.feedbackCard, { backgroundColor: ringColor + "0f", borderColor: ringColor + "30" }]}
+        >
+          <View style={[rStyles.feedbackIcon, { backgroundColor: ringColor + "20" }]}>
+            <Feather
+              name={isExcellent ? "star" : isGreat ? "award" : isGood ? "trending-up" : "book-open"}
+              size={16}
+              color={ringColor}
+            />
+          </View>
+          <Text style={[rStyles.feedbackText, { color: colors.foreground }]}>{message}</Text>
+        </Animated.View>
+
+        {/* ── Save status ── */}
+        {submitting && (
+          <Animated.View entering={FadeIn.duration(300)} style={rStyles.statusRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[rStyles.statusText, { color: colors.mutedForeground }]}>Saving results…</Text>
+          </Animated.View>
+        )}
+        {savedOffline && !submitting && (
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            style={[rStyles.statusPill, { backgroundColor: "#fef9c3", borderColor: "#fde047" }]}
+          >
+            <Feather name="wifi-off" size={13} color="#92400e" />
+            <Text style={[rStyles.statusText, { color: "#92400e", flex: 1 }]}>
+              Saved locally — will sync when you're back online.
+            </Text>
+          </Animated.View>
+        )}
+        {saveError && !savedOffline && (
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            style={[rStyles.statusPill, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}
+          >
+            <Feather name="alert-triangle" size={13} color="#dc2626" />
+            <Text style={[rStyles.statusText, { color: "#dc2626", flex: 1 }]} selectable>
+              Save failed: {saveError}
+            </Text>
+          </Animated.View>
+        )}
+
+        {/* ── Action buttons ── */}
+        <Animated.View entering={FadeInDown.delay(500).duration(400).springify()} style={rStyles.btnGroup}>
+          <TouchableOpacity
+            style={[rStyles.btn, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
+            onPress={onRetry}
+            activeOpacity={0.85}
+          >
+            <Feather name="refresh-cw" size={17} color="#fff" />
+            <Text style={[rStyles.btnText, { color: "#fff" }]}>Retry Quiz</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[rStyles.btn, { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.border }]}
+            onPress={onReview}
+            activeOpacity={0.85}
+          >
+            <Feather name="list" size={17} color={colors.foreground} />
+            <Text style={[rStyles.btnText, { color: colors.foreground }]}>Review Answers</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[rStyles.btn, { backgroundColor: colors.muted }]}
+            onPress={onHome}
+            activeOpacity={0.85}
+          >
+            <Feather name="home" size={17} color={colors.mutedForeground} />
+            <Text style={[rStyles.btnText, { color: colors.mutedForeground }]}>Go Home</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const rStyles = StyleSheet.create({
+  scroll: { alignItems: "center", paddingHorizontal: 24, paddingTop: 8 },
+  closeBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+
+  // Ring
+  ringWrap: { alignItems: "center", marginTop: 16, marginBottom: 32 },
+  ringOuter: {
+    width: 184,
+    height: 184,
+    borderRadius: 92,
+    borderWidth: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringInner: {
+    width: 152,
+    height: 152,
+    borderRadius: 76,
+    borderWidth: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  scoreRow: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
+  scoreNum: { fontSize: 52, fontFamily: "Inter_700Bold", letterSpacing: -2.5, lineHeight: 56 },
+  scorePct: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.5, marginBottom: 6 },
+  gradeHint: { fontSize: 11, fontFamily: "Inter_400Regular", letterSpacing: 0.2 },
+  gradeBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  gradeText: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // Title
+  titleGroup: { alignItems: "center", gap: 6, marginBottom: 24, width: "100%" },
+  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.9, textAlign: "center" },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, maxWidth: 280 },
+
+  // Pills
+  pills: { flexDirection: "row", gap: 10, width: "100%", marginBottom: 16 },
+  pill: { flex: 1, alignItems: "center", paddingVertical: 14, paddingHorizontal: 6, borderRadius: 18, borderWidth: 1, gap: 5 },
+  pillNum: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
+  pillLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+
+  // Feedback
+  feedbackCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    width: "100%",
+    marginBottom: 16,
+  },
+  feedbackIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 },
+  feedbackText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 21 },
+
+  // Status
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  statusPill: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 14, borderWidth: 1, width: "100%", marginBottom: 16 },
+  statusText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+
+  // Buttons
+  btnGroup: { gap: 10, width: "100%" },
+  btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    paddingVertical: 16,
+    borderRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  btnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", letterSpacing: -0.3 },
+});
 
 // ── Medical study tips shown while loading ────────────────────────────────────
 const TIPS = [
@@ -549,73 +858,20 @@ export default function QuizScreen() {
   // ── Results screen ─────────────────────────────────────────────────────────
   if (finished) {
     const score = Math.round((correctCount / questions.length) * 100);
-    const isPassing = score >= 60;
-
     return (
-      <View style={[styles.resultsScreen, { backgroundColor: colors.background, paddingTop: topPad + 24, paddingBottom: insets.bottom + 32 }]}>
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.resultsContent}>
-          <View style={[styles.resultIcon, { backgroundColor: isPassing ? "#d1fae5" : "#fee2e2" }]}>
-            <Feather name={isPassing ? "award" : "refresh-cw"} size={36} color={isPassing ? colors.success : colors.destructive} />
-          </View>
-
-          <Text style={[styles.resultTitle, { color: colors.foreground }]}>
-            {isPassing ? "Well done!" : "Keep practising!"}
-          </Text>
-          <Text style={[styles.resultScore, { color: isPassing ? colors.success : colors.destructive }]}>
-            {score}%
-          </Text>
-          <Text style={[styles.resultBreakdown, { color: colors.mutedForeground }]}>
-            {correctCount} of {questions.length} correct
-          </Text>
-          {submitting && (
-            <Text style={[styles.savingText, { color: colors.mutedForeground }]}>Saving results...</Text>
-          )}
-          {savedOffline && !submitting && (
-            <View style={[styles.saveErrorBox, { backgroundColor: "#fef9c3", borderColor: "#fde047" }]}>
-              <Feather name="wifi-off" size={14} color="#92400e" />
-              <Text style={[styles.saveErrorText, { color: "#92400e" }]}>
-                Saved locally — will sync when you're back online.
-              </Text>
-            </View>
-          )}
-          {saveError && !savedOffline && (
-            <View style={[styles.saveErrorBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
-              <Feather name="alert-triangle" size={14} color="#dc2626" />
-              <Text style={styles.saveErrorText} selectable>Save failed: {saveError}</Text>
-            </View>
-          )}
-
-          {/* Action buttons */}
-          <View style={styles.resultBtns}>
-            {/* Retry */}
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-              onPress={handleRetry}
-            >
-              <Feather name="refresh-cw" size={16} color="#fff" />
-              <Text style={styles.actionBtnText}>Retry Quiz</Text>
-            </TouchableOpacity>
-
-            {/* Review */}
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
-              onPress={() => setReviewing(true)}
-            >
-              <Feather name="list" size={16} color={colors.foreground} />
-              <Text style={[styles.actionBtnText, { color: colors.foreground }]}>Review Answers</Text>
-            </TouchableOpacity>
-
-            {/* Go Home */}
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.muted }]}
-              onPress={() => router.replace("/(tabs)")}
-            >
-              <Feather name="home" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.actionBtnText, { color: colors.mutedForeground }]}>Go Home</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </View>
+      <ResultsView
+        score={score}
+        correctCount={correctCount}
+        totalCount={questions.length}
+        submitting={submitting}
+        savedOffline={savedOffline}
+        saveError={saveError}
+        lectureName={lectureName}
+        topPad={topPad}
+        onRetry={handleRetry}
+        onReview={() => setReviewing(true)}
+        onHome={() => router.replace("/(tabs)")}
+      />
     );
   }
 
