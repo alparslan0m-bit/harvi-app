@@ -80,15 +80,10 @@ export default function ProfileScreen() {
 
       {/* ── Fixed header ──────────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-        <View style={[styles.avatarSmall, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarSmallText}>{initial}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {user?.email ?? "Account & settings"}
-          </Text>
-        </View>
+        <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+          Account & settings
+        </Text>
       </View>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
