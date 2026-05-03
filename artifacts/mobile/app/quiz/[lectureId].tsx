@@ -182,12 +182,27 @@ export default function QuizScreen() {
 
   if (error || !questions || questions.length === 0) {
     return (
-      <View style={[styles.warmingScreen, { backgroundColor: colors.background }]}>
+      <View style={[styles.warmingScreen, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
+        <Feather name="alert-circle" size={40} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
         <Text style={[styles.warmingTitle, { color: colors.foreground }]}>
-          No questions found
+          {error ? "Failed to load questions" : "No questions found"}
         </Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.backLink, { color: colors.primary }]}>Go back</Text>
+        {error && (
+          <Text style={[styles.warmingText, { color: colors.destructive, marginTop: 8, textAlign: "center" }]} selectable>
+            {(error as Error).message}
+          </Text>
+        )}
+        {!error && (
+          <Text style={[styles.warmingText, { color: colors.mutedForeground, marginTop: 8, textAlign: "center" }]}>
+            No questions are linked to this lecture in the database.{"\n\n"}
+            Lecture ID: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{lectureId}</Text>
+          </Text>
+        )}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginTop: 24, backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+        >
+          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
