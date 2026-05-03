@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useScrollToTop } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -11,6 +11,14 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MasteryBar } from "@/components/MasteryBar";
@@ -20,6 +28,92 @@ import { useAuth } from "@/context/AuthContext";
 import { useSyncStatus } from "@/context/SyncContext";
 import { useColors } from "@/hooks/useColors";
 import { useStats } from "@/hooks/useStats";
+
+// ── Streak motivational copy ────────────────────────────────────────────────
+function streakMessage(streak: number): string {
+  if (streak === 0) return "Study today to start a streak!";
+  if (streak === 1) return "Great start — come back tomorrow!";
+  if (streak < 5) return "You're building momentum. Keep it up!";
+  if (streak < 10) return "Impressive consistency — don't break it!";
+  if (streak < 30) return "You're on fire! Keep the streak alive!";
+  return "Legendary dedication. You're unstoppable!";
+}
+
+// ── Streak card ─────────────────────────────────────────────────────────────
+function StreakCard({ streak }: { streak: number }) {
+  const colors = useColors();
+
+  const zapScale = useSharedValue(1);
+  useEffect(() => {
+    if (streak > 0) {
+      zapScale.value = withRepeat(
+        withSequence(
+          withTiming(1.18, { duration: 600, easing: Easing.out(Easing.quad) }),
+          withTiming(1, { duration: 600, easing: Easing.in(Easing.quad) })
+        ),
+        -1,
+        false
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streak]);
+
+  const zapStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: zapScale.value }],
+  }));
+
+  const isActive = streak > 0;
+  const iconBg = isActive ? "#fffbeb" : colors.muted;
+  const iconColor = isActive ? "#f59e0b" : colors.mutedForeground;
+  const numColor = isActive ? "#b45309" : colors.mutedForeground;
+
+  return (
+    <View style={[streakStyles.card, { backgroundColor: isActive ? "#fffdf0" : colors.card, borderColor: isActive ? "#fde68a" : colors.border }]}>
+      {/* Left: icon + number */}
+      <View style={streakStyles.left}>
+        <View style={[streakStyles.iconWrap, { backgroundColor: iconBg }]}>
+          <Animated.View style={zapStyle}>
+            <Feather name="zap" size={22} color={iconColor} />
+          </Animated.View>
+        </View>
+        <View style={streakStyles.numCol}>
+          <Text style={[streakStyles.num, { color: numColor }]}>{streak}</Text>
+          <Text style={[streakStyles.label, { color: colors.mutedForeground }]}>day streak</Text>
+        </View>
+      </View>
+
+      {/* Right: message */}
+      <Text style={[streakStyles.message, { color: colors.mutedForeground }]}>
+        {streakMessage(streak)}
+      </Text>
+    </View>
+  );
+}
+
+const streakStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  left: { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  numCol: { alignItems: "flex-start" },
+  num: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -1, lineHeight: 32 },
+  label: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  message: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18, textAlign: "right" },
+});
 
 export default function StatsScreen() {
   const colors = useColors();
@@ -138,10 +232,20 @@ export default function StatsScreen() {
             </View>
           </View>
 
+          {/* Streak card */}
+          <StreakCard streak={stats.streak ?? 0} />
+
           {/* Weekly Activity */}
           <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Weekly Activity</Text>
-            <WeeklyChart data={weekData} />
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Weekly Activity</Text>
+              <Text style={[styles.weekTotal, { color: colors.mutedForeground }]}>
+                {weekData.reduce((s, d) => s + d.count, 0)} quiz{weekData.reduce((s, d) => s + d.count, 0) !== 1 ? "zes" : ""} this week
+              </Text>
+            </View>
+            <View style={{ marginTop: 20 }}>
+              <WeeklyChart data={weekData} />
+            </View>
           </View>
 
           {/* Lecture Mastery */}
@@ -286,6 +390,8 @@ const styles = StyleSheet.create({
   resultDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
   scoreBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   scoreText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  weekTotal: { fontSize: 12, fontFamily: "Inter_400Regular" },
 
   emptyIcon: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },

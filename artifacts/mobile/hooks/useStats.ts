@@ -89,33 +89,62 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
   const average_score = rows.reduce((s, r) => s + (r.score ?? 0), 0) / rows.length;
   const best_score = Math.max(...rows.map((r) => r.score ?? 0));
 
-  // Streak
-  const uniqueDays = [...new Set(rows.map((r) => new Date(r.created_at).toDateString()))];
-  let streak = 0;
+  // ── Streak (robust) ───────────────────────────────────────────────────────
+  // Normalise every result to a midnight UTC+local timestamp, deduplicate, sort desc.
+  const DAY_MS = 86_400_000;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  for (let i = 0; i < uniqueDays.length; i++) {
-    const d = new Date(uniqueDays[i]);
-    d.setHours(0, 0, 0, 0);
-    const expected = new Date(today);
-    expected.setDate(today.getDate() - i);
-    if (d.getTime() === expected.getTime()) streak++;
-    else break;
+  const todayMs = today.getTime();
+
+  const dayTimestamps = [
+    ...new Set(
+      rows.map((r) => {
+        const d = new Date(r.created_at);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    ),
+  ].sort((a, b) => b - a); // most recent first
+
+  let streak = 0;
+  if (dayTimestamps.length > 0) {
+    const mostRecent = dayTimestamps[0];
+    // Streak is alive if the user studied today OR yesterday (haven't broken it yet today)
+    const startFromToday = mostRecent === todayMs;
+    const startFromYesterday = mostRecent === todayMs - DAY_MS;
+
+    if (startFromToday || startFromYesterday) {
+      // Walk backwards: each consecutive day adds 1
+      const offsetStart = startFromToday ? 0 : 1;
+      for (let i = 0; i < dayTimestamps.length; i++) {
+        const expected = todayMs - (offsetStart + i) * DAY_MS;
+        if (dayTimestamps[i] === expected) streak++;
+        else break;
+      }
+    }
   }
 
-  // Weekly activity
-  const weekStart = new Date();
+  // ── Weekly activity ────────────────────────────────────────────────────────
+  // Start of current week (Sunday = 0)
+  const weekStart = new Date(todayMs);
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
+  const weekStartMs = weekStart.getTime();
+
   const countByDay: Record<number, number> = {};
   rows.forEach((r) => {
     const d = new Date(r.created_at);
-    if (d >= weekStart) {
+    d.setHours(0, 0, 0, 0);
+    if (d.getTime() >= weekStartMs) {
       const day = d.getDay();
       countByDay[day] = (countByDay[day] ?? 0) + 1;
     }
   });
-  const weekly_activity = DAYS.map((day, i) => ({ day, count: countByDay[i] ?? 0 }));
+  const todayDow = new Date().getDay(); // 0=Sun … 6=Sat
+  const weekly_activity = DAYS.map((day, i) => ({
+    day,
+    count: countByDay[i] ?? 0,
+    isToday: i === todayDow,
+  }));
 
   // Subject mastery
   const byLecture: Record<string, number[]> = {};
