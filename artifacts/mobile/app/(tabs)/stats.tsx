@@ -17,6 +17,7 @@ import { MasteryBar } from "@/components/MasteryBar";
 import { StatCard } from "@/components/StatCard";
 import { WeeklyChart } from "@/components/WeeklyChart";
 import { useAuth } from "@/context/AuthContext";
+import { useSyncStatus } from "@/context/SyncContext";
 import { useColors } from "@/hooks/useColors";
 import { useStats } from "@/hooks/useStats";
 
@@ -25,6 +26,7 @@ export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { data: stats, isLoading, error } = useStats(user?.id);
+  const { isOnline, pendingCount } = useSyncStatus();
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -49,14 +51,24 @@ export default function StatsScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
         </View>
-        {stats && stats.streak > 0 && (
-          <View style={[styles.streakBadge, { backgroundColor: "#fffbeb" }]}>
-            <Feather name="zap" size={14} color={colors.warning} />
-            <Text style={[styles.streakText, { color: colors.warning }]}>
-              {stats.streak}d
-            </Text>
-          </View>
-        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+          {!isOnline && (
+            <View style={[styles.cachePill, { backgroundColor: "#fef3c7" }]}>
+              <Feather name="wifi-off" size={11} color="#92400e" />
+              <Text style={[styles.cacheText, { color: "#92400e" }]}>
+                {pendingCount > 0 ? `Cached · ${pendingCount} pending` : "Cached"}
+              </Text>
+            </View>
+          )}
+          {stats && stats.streak > 0 && (
+            <View style={[styles.streakBadge, { backgroundColor: "#fffbeb" }]}>
+              <Feather name="zap" size={14} color={colors.warning} />
+              <Text style={[styles.streakText, { color: colors.warning }]}>
+                {stats.streak}d
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* ── Loading ───────────────────────────────────────────────────── */}
@@ -241,6 +253,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   streakText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  cachePill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20,
+  },
+  cacheText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
   content: { paddingTop: 20 },

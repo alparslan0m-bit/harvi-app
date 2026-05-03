@@ -23,6 +23,7 @@ import {
   pendingCount as getPendingCount,
   removeSynced,
 } from "@/lib/offlineQueue";
+import { writeProgressCache } from "@/hooks/useProgress";
 import { supabase } from "@/lib/supabase";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
@@ -90,6 +91,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     if (synced.length > 0) {
       await removeSynced(synced);
+
+      // Remaining queue may still have IDs — rebuild the progress cache
+      // to exclude the just-synced items (they are now in Supabase).
+      // The invalidation below will re-fetch and write a fresh cache.
+      if (user?.id) {
+        // Force a blank progress cache so the next fetch rebuilds from Supabase
+        await writeProgressCache(user.id, new Set<string>());
+      }
+
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["progress"] });
     }

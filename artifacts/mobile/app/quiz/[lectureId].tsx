@@ -27,6 +27,7 @@ import { useColors } from "@/hooks/useColors";
 import { useQuizQuestions } from "@/hooks/useQuiz";
 import { decryptAnswer } from "@/lib/crypto";
 import { enqueueQuizResult } from "@/lib/offlineQueue";
+import { optimisticallyMarkComplete } from "@/hooks/useProgress";
 import { supabase } from "@/lib/supabase";
 import { Question } from "@/types";
 
@@ -145,7 +146,7 @@ export default function QuizScreen() {
       const now = new Date().toISOString();
 
       if (!isOnline) {
-        // Queue result for later sync
+        // Queue result for later sync + mark lecture complete immediately
         await enqueueQuizResult({
           userId: user?.id ?? "",
           lectureId: lectureId ?? "",
@@ -154,6 +155,10 @@ export default function QuizScreen() {
           correctAnswers: correctCount,
           createdAt: now,
         });
+        // Optimistic: flip the lecture card green right now, even offline
+        if (user?.id && lectureId) {
+          await optimisticallyMarkComplete(user.id, lectureId);
+        }
         setSavedOffline(true);
       } else {
         const { error: insertErr } = await supabase
@@ -168,7 +173,7 @@ export default function QuizScreen() {
           });
 
         if (insertErr) {
-          // Network error mid-request — fall back to queue
+          // Mid-request network error — fall back to queue
           await enqueueQuizResult({
             userId: user?.id ?? "",
             lectureId: lectureId ?? "",
@@ -177,11 +182,15 @@ export default function QuizScreen() {
             correctAnswers: correctCount,
             createdAt: now,
           });
+          if (user?.id && lectureId) {
+            await optimisticallyMarkComplete(user.id, lectureId);
+          }
           setSavedOffline(true);
         }
       }
 
-      // Invalidate progress + stats regardless of save outcome
+      // Invalidate progress + stats — the hooks merge queue IDs, so they
+      // reflect the completed lecture immediately even when offline.
       queryClient.invalidateQueries({ queryKey: ["progress"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       setSubmitting(false);
