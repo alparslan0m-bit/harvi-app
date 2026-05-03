@@ -24,6 +24,7 @@ import { useColors } from "@/hooks/useColors";
 import { supabase } from "@/lib/supabase";
 
 const AVATAR_KEY = "harvi:avatar";
+const NAME_KEY   = "harvi:displayName";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -34,6 +35,10 @@ export default function ProfileScreen() {
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const nameInputRef = useRef<TextInput>(null);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -45,10 +50,13 @@ export default function ProfileScreen() {
     ? new Date(user.created_at).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
     : null;
 
-  /* Load saved avatar */
+  /* Load saved avatar + name */
   useEffect(() => {
-    AsyncStorage.getItem(AVATAR_KEY).then((val) => {
-      if (val) setAvatarId(val as AvatarId);
+    AsyncStorage.multiGet([AVATAR_KEY, NAME_KEY]).then((pairs) => {
+      const av = pairs[0][1];
+      const nm = pairs[1][1];
+      if (av) setAvatarId(av as AvatarId);
+      if (nm) setDisplayName(nm);
     });
   }, []);
 
@@ -56,6 +64,25 @@ export default function ProfileScreen() {
     setAvatarId(id);
     AsyncStorage.setItem(AVATAR_KEY, id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const startEditingName = () => {
+    setNameInput(displayName);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 80);
+  };
+
+  const saveName = () => {
+    const trimmed = nameInput.trim();
+    setDisplayName(trimmed);
+    AsyncStorage.setItem(NAME_KEY, trimmed);
+    setEditingName(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const cancelEditName = () => {
+    setEditingName(false);
+    setNameInput(displayName);
   };
 
   const handleSubmitFeedback = async () => {
@@ -148,8 +175,61 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* ── Display name (inline editable) ── */}
+          {editingName ? (
+            <View style={styles.nameEditRow}>
+              <TextInput
+                ref={nameInputRef}
+                style={[styles.nameInput, {
+                  color: colors.foreground,
+                  borderColor: colors.primary,
+                  backgroundColor: colors.background,
+                }]}
+                value={nameInput}
+                onChangeText={setNameInput}
+                placeholder="Your name"
+                placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
+                onSubmitEditing={saveName}
+                maxLength={40}
+                autoCapitalize="words"
+              />
+              <TouchableOpacity
+                style={[styles.nameBtn, { backgroundColor: colors.primary }]}
+                onPress={saveName}
+                activeOpacity={0.8}
+              >
+                <Feather name="check" size={14} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nameBtn, { backgroundColor: colors.muted }]}
+                onPress={cancelEditName}
+                activeOpacity={0.8}
+              >
+                <Feather name="x" size={14} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.nameDisplayRow}
+              onPress={startEditingName}
+              activeOpacity={0.75}
+            >
+              {displayName ? (
+                <Text style={[styles.heroName, { color: colors.foreground }]} numberOfLines={1}>
+                  {displayName}
+                </Text>
+              ) : (
+                <Text style={[styles.heroNamePlaceholder, { color: colors.mutedForeground }]}>
+                  Add your name
+                </Text>
+              )}
+              <Feather name="edit-3" size={13} color={colors.mutedForeground} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+          )}
+
           {/* Email */}
-          <Text style={[styles.heroEmail, { color: colors.foreground }]} numberOfLines={1}>
+          <Text style={[styles.heroEmail, { color: colors.mutedForeground }]} numberOfLines={1}>
             {user?.email}
           </Text>
 
@@ -332,7 +412,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  heroEmail: { fontSize: 15, fontFamily: "Inter_600SemiBold", letterSpacing: -0.2 },
+  /* Name editing */
+  nameDisplayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  heroName: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.5,
+  },
+  heroNamePlaceholder: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+  },
+  nameEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    paddingHorizontal: 4,
+  },
+  nameInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+  },
+  nameBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", letterSpacing: -0.1 },
   memberPill: {
     flexDirection: "row",
     alignItems: "center",
