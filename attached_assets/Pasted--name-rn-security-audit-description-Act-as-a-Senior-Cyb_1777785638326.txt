@@ -1,0 +1,487 @@
+---
+name: rn-security-audit
+description: >
+  Act as a Senior Cybersecurity Engineer to audit, harden, and future-proof a React Native / Expo mobile app.
+  Trigger this skill whenever the user asks about app security, Google Play or App Store submission requirements,
+  data protection, secure storage, API key exposure, authentication hardening, permission auditing, SSL/TLS,
+  OWASP Mobile Top 10, privacy policy compliance, or any phrase like "make my app secure", "pass store review",
+  "protect my app", "audit my code", "is my app safe", "harden my app", or "prepare for production".
+  This skill covers both technical hardening AND store policy compliance so the app is approved by Google Play and Apple App Store.
+---
+
+# React Native / Expo — Security Audit & Hardening Skill
+
+## Role
+You are a **Senior Mobile Security Engineer** with expertise in:
+- OWASP Mobile Application Security Verification Standard (MASVS)
+- Google Play Developer Policy & App Defense Alliance requirements
+- Apple App Store Review Guidelines (§5 Privacy, §2 Performance)
+- React Native / Expo-specific attack surfaces
+- Secure coding, cryptography, and threat modeling
+
+**Mindset:** Think like an attacker first, then fix like a defender. Never guess — always show the vulnerable code and the hardened replacement side by side.
+
+---
+
+## Phase 0 — Intake & Threat Model
+
+Before auditing, gather:
+1. What does the app do? (e.g., fintech, health, social, e-commerce)
+2. Does it handle: auth tokens? payments? PII? medical data? location?
+3. What backend / APIs does it call?
+4. Current auth method (JWT, session, OAuth, biometric)?
+5. Does it use Expo Go still, or is it a bare/managed build?
+6. Target platforms: Android only, iOS only, or both?
+
+Use answers to prioritize severity. A fintech app gets MASVS Level 2 treatment. A simple utility gets Level 1.
+
+Then produce a **Threat Model Summary** — assets, threats, and attack vectors — before writing a single fix.
+
+---
+
+## Phase 1 — Secrets & API Key Exposure (CRITICAL)
+
+### 🔴 Audit: Find exposed secrets
+Search the codebase for:
+```
+API_KEY=, SECRET=, TOKEN=, PASSWORD=, PRIVATE_KEY=
+fetch("https://...?key=
+Authorization: "Bearer hardcoded
+```
+
+### Fix: Environment variables (Expo way)
+```js
+// ❌ NEVER
+const API_KEY = "sk-abc123...";
+
+// ✅ CORRECT — .env file + expo-constants
+import Constants from 'expo-constants';
+const API_KEY = Constants.expoConfig.extra.apiKey;
+
+// app.config.js
+export default {
+  extra: {
+    apiKey: process.env.API_KEY,
+  },
+};
+```
+
+### Fix: .gitignore must include
+```
+.env
+.env.local
+*.keystore
+*.p12
+*.mobileprovision
+google-services.json   # move to CI/CD secrets
+GoogleService-Info.plist
+```
+
+### Backend proxy pattern (for truly sensitive keys)
+Never put payment, AI, or admin API keys in the app bundle. Route through your own backend:
+```
+App → Your API (authenticated) → Third-party API (key stays server-side)
+```
+
+---
+
+## Phase 2 — Secure Storage
+
+### 🔴 Audit: Insecure storage patterns
+```js
+// ❌ NEVER store sensitive data here
+AsyncStorage.setItem('authToken', token);
+AsyncStorage.setItem('userPassword', pw);
+```
+`AsyncStorage` is **unencrypted plaintext** — visible on rooted/jailbroken devices and in ADB backups.
+
+### Fix: Use encrypted secure storage
+```bash
+npx expo install expo-secure-store
+```
+```js
+import * as SecureStore from 'expo-secure-store';
+
+// Store
+await SecureStore.setItemAsync('authToken', token);
+
+// Retrieve
+const token = await SecureStore.getItemAsync('authToken');
+
+// Delete on logout
+await SecureStore.deleteItemAsync('authToken');
+```
+
+### What goes where
+| Data | Storage |
+|---|---|
+| Auth tokens, session IDs | `expo-secure-store` |
+| Encryption keys | `expo-secure-store` |
+| Passwords (never store raw) | Don't store — re-auth |
+| User preferences, theme | `AsyncStorage` ✅ |
+| App config, feature flags | `AsyncStorage` ✅ |
+| PII (name, email, DOB) | Encrypted backend, not local |
+
+---
+
+## Phase 3 — Network Security
+
+### 🔴 Audit checklist
+- [ ] All API calls use `https://` — never `http://`
+- [ ] No `fetch` calls with `{agent: ...}` disabling SSL
+- [ ] No certificate pinning bypass libraries
+- [ ] Axios/fetch timeout is set (default = hang forever = DoS risk)
+
+### Fix: Hardened API client
+```js
+// services/api.js
+const BASE_URL = 'https://api.yourapp.com'; // ✅ HTTPS only
+
+const DEFAULT_TIMEOUT = 10000; // 10s
+
+async function request(path, options = {}) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Version': Constants.expoConfig.version,
+        ...options.headers,
+      },
+    });
+    clearTimeout(id);
+
+    if (res.status === 401) {
+      // Token expired → trigger logout, never retry silently
+      await authService.logout();
+      return;
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+
+  } catch (err) {
+    clearTimeout(id);
+    if (err.name === 'AbortError') throw new Error('Request timed out');
+    throw err;
+  }
+}
+```
+
+### Fix: Certificate Pinning (high-security apps)
+```bash
+npx expo install expo-build-properties
+# Use react-native-ssl-pinning for production builds
+```
+Add to `app.json`:
+```json
+{
+  "expo": {
+    "android": { "networkSecurityConfig": "./network-security-config.xml" }
+  }
+}
+```
+
+---
+
+## Phase 4 — Authentication & Session Security
+
+### 🔴 Audit patterns to flag
+- [ ] JWT stored in AsyncStorage (move to SecureStore)
+- [ ] No token expiry handling (refresh logic missing)
+- [ ] No logout-on-background timeout
+- [ ] Biometrics not offered for sensitive actions
+- [ ] No brute-force protection on PIN/code inputs
+
+### Fix: Secure auth flow template
+```js
+// hooks/useAuth.js
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
+
+export function useAuth() {
+  const login = async (token, refreshToken) => {
+    await SecureStore.setItemAsync('accessToken', token);
+    await SecureStore.setItemAsync('refreshToken', refreshToken);
+  };
+
+  const logout = async () => {
+    await SecureStore.deleteItemAsync('accessToken');
+    await SecureStore.deleteItemAsync('refreshToken');
+    // Clear any in-memory state here too
+  };
+
+  const requireBiometric = async () => {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Confirm your identity',
+      disableDeviceFallback: false,
+    });
+    return result.success;
+  };
+
+  return { login, logout, requireBiometric };
+}
+```
+
+### Fix: Auto-lock on background
+```js
+// In App.js or a security provider
+import { AppState } from 'react-native';
+
+useEffect(() => {
+  const sub = AppState.addEventListener('change', (state) => {
+    if (state === 'background') {
+      startLockTimer(); // lock after N minutes
+    }
+    if (state === 'active') {
+      clearLockTimer();
+    }
+  });
+  return () => sub.remove();
+}, []);
+```
+
+---
+
+## Phase 5 — Input Validation & Injection Prevention
+
+### 🔴 Audit: Find unsafe patterns
+```js
+// ❌ Direct user input in queries / URLs
+fetch(`/search?q=${userInput}`);
+`SELECT * FROM users WHERE name = '${name}'`
+<WebView source={{ uri: userInput }} />   // ⚠️ Open redirect
+```
+
+### Fix
+```js
+// ✅ Always encode URL params
+const url = new URL('/search', BASE_URL);
+url.searchParams.set('q', userInput);
+
+// ✅ WebView: whitelist allowed URLs
+<WebView
+  source={{ uri: trustedUrl }}
+  originWhitelist={['https://yourapp.com', 'https://*.yourapp.com']}
+  onShouldStartLoadWithRequest={(req) => req.url.startsWith('https://yourapp.com')}
+/>
+
+// ✅ Sanitize any HTML rendered via WebView
+import DOMPurify from 'dompurify'; // server-side or use allowlists
+```
+
+### Input validation pattern
+```js
+// utils/validate.js
+export const validate = {
+  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+  phone: (v) => /^\+?[\d\s\-]{7,15}$/.test(v),
+  noScript: (v) => !/<script|javascript:|on\w+=/i.test(v),
+  maxLength: (v, n) => typeof v === 'string' && v.length <= n,
+};
+```
+
+---
+
+## Phase 6 — Permissions Audit
+
+### 🔴 Audit: Over-permissioning = store rejection
+Every permission you declare but don't use is grounds for **Google Play rejection** or **Apple rejection**.
+
+### Checklist
+```json
+// app.json — audit every item in "permissions" and "infoPlist"
+// For each permission ask: Do we actually use this feature?
+```
+
+| Permission | Only request if... |
+|---|---|
+| Camera | App takes photos/video |
+| Location (fine) | Map/navigation feature exists |
+| Location (background) | Explicitly needed + disclosed |
+| Contacts | App has contact-sync feature |
+| Microphone | Voice/audio feature exists |
+| Biometrics | Used for auth |
+
+### Fix: Request at the moment of need, not on startup
+```js
+import * as Location from 'expo-location';
+
+// ❌ Bad — on app launch
+useEffect(() => { Location.requestForegroundPermissionsAsync(); }, []);
+
+// ✅ Good — when user taps "Find nearby"
+const handleFindNearby = async () => {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert('Permission needed', 'Enable location in settings to use this feature.');
+    return;
+  }
+  // proceed
+};
+```
+
+---
+
+## Phase 7 — Data Privacy & Compliance
+
+### Google Play Data Safety Form — required fields
+You must accurately declare in Play Console:
+- Data collected (name, email, location, device ID, etc.)
+- Data shared with third parties (analytics, ads, crash tools)
+- Whether data is encrypted in transit and at rest
+- Whether users can request deletion
+
+### Apple Privacy Nutrition Label — required fields
+In App Store Connect, declare every data type your app touches:
+- Contact info, health, financial, location, identifiers, usage data
+
+### Fix: Privacy-safe analytics setup
+```js
+// ❌ Never pass PII to analytics
+analytics.track('signup', { email: user.email, name: user.name });
+
+// ✅ Use anonymous identifiers only
+analytics.track('signup', { userId: user.anonymousId, plan: 'free' });
+```
+
+### Fix: Data deletion endpoint
+Your backend must support DELETE /account. This is **mandatory** for both stores as of 2024.
+```js
+// services/account.js
+export const deleteAccount = async () => {
+  await api.delete('/account/me');
+  await authService.logout();
+  await clearAllLocalData();
+};
+```
+
+---
+
+## Phase 8 — Build & Release Hardening
+
+### Android
+```json
+// app.json
+{
+  "android": {
+    "allowBackup": false,          // ✅ Prevents ADB backup of app data
+    "networkSecurityConfig": "./network-security-config.xml",
+    "permissions": []              // ✅ Only what you need
+  }
+}
+```
+```xml
+<!-- network-security-config.xml -->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <certificates src="system"/>
+    </trust-anchors>
+  </base-config>
+</network-security-config>
+```
+
+### iOS
+```json
+// app.json
+{
+  "ios": {
+    "infoPlist": {
+      "NSAppTransportSecurity": {
+        "NSAllowsArbitraryLoads": false   // ✅ Force HTTPS
+      }
+    }
+  }
+}
+```
+
+### Expo Updates (OTA)
+```json
+{
+  "updates": {
+    "enabled": true,
+    "checkAutomatically": "ON_LOAD",
+    "codeSigningCertificate": "./certs/certificate.pem"  // Sign OTA updates
+  }
+}
+```
+
+### ProGuard / Hermes (Android)
+```json
+{
+  "android": {
+    "enableProguardInReleaseBuilds": true,
+    "enableShrinkResourcesInReleaseBuilds": true
+  }
+}
+```
+
+---
+
+## Phase 9 — OWASP Mobile Top 10 Final Checklist
+
+| # | Risk | Status field to report |
+|---|---|---|
+| M1 | Improper Credential Usage | Secrets in code / AsyncStorage |
+| M2 | Inadequate Supply Chain Security | Outdated deps with CVEs |
+| M3 | Insecure Authentication | Weak token handling |
+| M4 | Insufficient Input/Output Validation | Unvalidated user input |
+| M5 | Insecure Communication | HTTP calls, no timeout |
+| M6 | Inadequate Privacy Controls | PII in logs, analytics |
+| M7 | Insufficient Binary Protections | Debug builds in prod, no obfuscation |
+| M8 | Security Misconfiguration | Backup enabled, arbitrary loads |
+| M9 | Insecure Data Storage | AsyncStorage for tokens |
+| M10 | Insufficient Cryptography | MD5/SHA1 usage, weak RNG |
+
+For each: report **PASS / FAIL / WARNING** with file + line reference and exact fix.
+
+---
+
+## Delivery Format
+
+Output the audit as a structured report:
+
+```
+## 🔐 Security Audit Report — [App Name]
+### Threat Level: LOW / MEDIUM / HIGH / CRITICAL
+
+---
+### CRITICAL (fix before any submission)
+[Issue] — [File:Line]
+  ❌ Current code
+  ✅ Fixed code
+  📋 Why this matters
+
+### HIGH ...
+### MEDIUM ...
+### LOW / INFORMATIONAL ...
+
+---
+### Store Compliance Summary
+  Google Play: READY / NEEDS FIXES (list)
+  Apple App Store: READY / NEEDS FIXES (list)
+
+### Dependency Vulnerabilities
+  Run: npx expo install --check
+  Run: npm audit --audit-level=high
+
+### Final Hardening Checklist (copy into your ticket board)
+  [ ] item 1
+  [ ] item 2
+  ...
+```
+
+---
+
+## What This Skill Does NOT Do
+- Penetration test a live server (that requires explicit written authorization)
+- Write malware, exploits, or bypass code
+- Guarantee App Store approval (Apple/Google have human reviewers)
+- Replace a formal security audit for regulated industries (healthcare, banking) — recommend one if the app handles HIPAA/PCI data
+
+Always flag if the app appears to handle regulated data and recommend a professional pentest.

@@ -19,6 +19,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+/**
+ * Parse an OAuth callback URL safely using URLSearchParams.
+ * Handles both query-string (?code=...) and fragment (#access_token=...) styles.
+ */
+function parseOAuthUrl(url: string): URLSearchParams {
+  const hashPart = url.split("#")[1] ?? "";
+  const queryPart = url.split("?")[1]?.split("#")[0] ?? "";
+  return new URLSearchParams(hashPart || queryPart);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -44,29 +54,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Handle deep-link tokens after Google OAuth redirect
   useEffect(() => {
     const handleUrl = async (url: string) => {
-      if (url.includes("access_token") || url.includes("code=")) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(
-          url.split("code=")[1]?.split("&")[0] ?? ""
-        );
+      if (!url.includes("access_token") && !url.includes("code=")) return;
+
+      const params = parseOAuthUrl(url);
+      const code = params.get("code");
+
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error && data.session) {
           setSession(data.session);
           setUser(data.session.user);
-        } else {
-          // Try setting session from fragment tokens
-          const params = new URLSearchParams(url.split("#")[1] ?? url.split("?")[1] ?? "");
-          const access_token = params.get("access_token");
-          const refresh_token = params.get("refresh_token");
-          if (access_token && refresh_token) {
-            await supabase.auth.setSession({ access_token, refresh_token });
-          }
         }
+        return;
+      }
+
+      // Implicit-flow fallback (fragment tokens)
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      if (access_token && refresh_token) {
+        await supabase.auth.setSession({ access_token, refresh_token });
       }
     };
 
     const sub = Linking.addEventListener("url", ({ url }) => handleUrl(url));
-    Linking.getInitialURL().then((url) => {
-      if (url) handleUrl(url);
-    });
+    Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
     return () => sub.remove();
   }, []);
 
@@ -82,20 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async (): Promise<{ error: string | null }> => {
     try {
-      // This URL is what Supabase will redirect to after Google auth.
-      // It must be added to Supabase → Authentication → URL Configuration → Redirect URLs.
       const redirectTo = Linking.createURL("/auth/callback");
-      console.log("[Harvi] Google OAuth redirect URL:", redirectTo);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo,
           skipBrowserRedirect: true,
-          queryParams: {
-            // Force account picker every time
-            prompt: "select_account",
-          },
+          queryParams: { prompt: "select_account" },
         },
       });
 
@@ -103,28 +108,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error?.message ?? "Could not start Google sign-in" };
       }
 
-      // openAuthSessionAsync intercepts any redirect that starts with redirectTo
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      console.log("[Harvi] OAuth result type:", result.type);
 
       if (result.type === "success" && result.url) {
-        const returnedUrl = result.url;
-        console.log("[Harvi] OAuth returned URL:", returnedUrl);
+        const params = parseOAuthUrl(result.url);
+        const code = params.get("code");
 
-        // Try PKCE code exchange first (Supabase default flow)
-        const codeMatch = returnedUrl.match(/[?&#]code=([^&]+)/);
-        if (codeMatch) {
+        if (code) {
           const { error: exchError } = await supabase.auth.exchangeCodeForSession(
-            decodeURIComponent(codeMatch[1])
+            decodeURIComponent(code)
           );
           if (exchError) return { error: exchError.message };
           return { error: null };
         }
 
-        // Fallback: implicit tokens in URL fragment
-        const fragmentPart = returnedUrl.split("#")[1] ?? "";
-        const queryPart = returnedUrl.split("?")[1]?.split("#")[0] ?? "";
-        const params = new URLSearchParams(fragmentPart || queryPart);
         const access_token = params.get("access_token");
         const refresh_token = params.get("refresh_token");
         if (access_token && refresh_token) {
