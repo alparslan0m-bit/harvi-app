@@ -126,7 +126,7 @@ function ResultsView({
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={[rStyles.scroll, { paddingBottom: insets.bottom + 48 }]}
+        contentContainerStyle={[rStyles.scroll, { paddingBottom: insets.bottom + 48, paddingTop: insets.top + 32 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Score ring ── */}
@@ -250,27 +250,27 @@ const rStyles = StyleSheet.create({
   closeBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 
   // Ring
-  ringWrap: { alignItems: "center", marginTop: 16, marginBottom: 32 },
+  ringWrap: { alignItems: "center", marginTop: 0, marginBottom: 28 },
   ringOuter: {
-    width: 184,
-    height: 184,
-    borderRadius: 92,
-    borderWidth: 14,
+    width: 158,
+    height: 158,
+    borderRadius: 79,
+    borderWidth: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   ringInner: {
-    width: 152,
-    height: 152,
-    borderRadius: 76,
-    borderWidth: 8,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 7,
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
   },
   scoreRow: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
-  scoreNum: { fontSize: 52, fontFamily: "Inter_700Bold", letterSpacing: -2.5, lineHeight: 56 },
-  scorePct: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.5, marginBottom: 6 },
+  scoreNum: { fontSize: 44, fontFamily: "Inter_700Bold", letterSpacing: -2, lineHeight: 48 },
+  scorePct: { fontSize: 18, fontFamily: "Inter_700Bold", letterSpacing: -0.5, marginBottom: 5 },
   gradeHint: { fontSize: 11, fontFamily: "Inter_400Regular", letterSpacing: 0.2 },
   gradeBadge: {
     position: "absolute",
