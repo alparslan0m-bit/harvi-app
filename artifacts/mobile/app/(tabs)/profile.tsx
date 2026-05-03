@@ -29,16 +29,19 @@ export default function ProfileScreen() {
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
+  const initial = (user?.email?.[0] ?? "U").toUpperCase();
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+    : null;
+
   const handleSubmitFeedback = async () => {
     if (!feedbackText.trim()) return;
     setSubmitting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     const { error } = await supabase.from("feedback").insert({
       user_id: user?.id,
       message: feedbackText.trim(),
     });
-
     setSubmitting(false);
     if (!error) {
       setFeedbackText("");
@@ -59,10 +62,7 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            await supabase
-              .from("quiz_results")
-              .delete()
-              .eq("user_id", user?.id ?? "");
+            await supabase.from("quiz_results").delete().eq("user_id", user?.id ?? "");
           },
         },
       ]
@@ -76,131 +76,148 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: topPad + 24, paddingBottom: insets.bottom + 100 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.headerSection}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
-      </View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
 
-      {/* User card */}
-      <View style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarText}>
-            {(user?.email?.[0] ?? "U").toUpperCase()}
-          </Text>
+      {/* ── Fixed header ──────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+        <View style={[styles.avatarSmall, { backgroundColor: colors.primary }]}>
+          <Text style={styles.avatarSmallText}>{initial}</Text>
         </View>
-        <View style={styles.userInfo}>
-          <Text style={[styles.userEmail, { color: colors.foreground }]}>
-            {user?.email}
-          </Text>
-          <Text style={[styles.userMeta, { color: colors.mutedForeground }]}>
-            Member since{" "}
-            {user?.created_at
-              ? new Date(user.created_at).toLocaleDateString("en-GB", {
-                  month: "long",
-                  year: "numeric",
-                })
-              : "—"}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {user?.email ?? "Account & settings"}
           </Text>
         </View>
       </View>
 
-      {/* Feedback */}
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Send Feedback
-        </Text>
-        <TextInput
-          style={[
-            styles.textarea,
-            {
-              color: colors.foreground,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-            },
-          ]}
-          placeholder="Share your thoughts, report a bug, or suggest a feature..."
-          placeholderTextColor={colors.mutedForeground}
-          multiline
-          numberOfLines={4}
-          value={feedbackText}
-          onChangeText={setFeedbackText}
-          textAlignVertical="top"
-        />
-        {feedbackSent && (
-          <View style={[styles.successBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
-            <Feather name="check-circle" size={14} color={colors.success} />
-            <Text style={[styles.successText, { color: colors.success }]}>
-              Feedback sent — thank you!
-            </Text>
+      {/* ── Scrollable content ────────────────────────────────────────── */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+      >
+        {/* Account info card */}
+        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
+            <Text style={styles.avatarLargeText}>{initial}</Text>
           </View>
-        )}
-        <TouchableOpacity
-          style={[
-            styles.btn,
-            {
-              backgroundColor: feedbackText.trim() ? colors.primary : colors.muted,
-            },
-          ]}
-          onPress={handleSubmitFeedback}
-          disabled={submitting || !feedbackText.trim()}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text
-              style={[
-                styles.btnText,
-                { color: feedbackText.trim() ? "#fff" : colors.mutedForeground },
-              ]}
-            >
-              Submit Feedback
-            </Text>
+          <View style={styles.infoRows}>
+            <View style={styles.infoRow}>
+              <Feather name="mail" size={15} color={colors.mutedForeground} />
+              <Text style={[styles.infoValue, { color: colors.foreground }]} numberOfLines={1}>
+                {user?.email}
+              </Text>
+            </View>
+            {memberSince && (
+              <View style={styles.infoRow}>
+                <Feather name="calendar" size={15} color={colors.mutedForeground} />
+                <Text style={[styles.infoValue, { color: colors.mutedForeground }]}>
+                  Member since {memberSince}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Feedback */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <Feather name="message-square" size={17} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Send Feedback</Text>
+          </View>
+          <TextInput
+            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            placeholder="Share your thoughts, report a bug, or suggest a feature..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            numberOfLines={4}
+            value={feedbackText}
+            onChangeText={setFeedbackText}
+            textAlignVertical="top"
+          />
+          {feedbackSent && (
+            <View style={[styles.successBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
+              <Feather name="check-circle" size={14} color={colors.success} />
+              <Text style={[styles.successText, { color: colors.success }]}>
+                Feedback sent — thank you!
+              </Text>
+            </View>
           )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.btn, { backgroundColor: feedbackText.trim() ? colors.primary : colors.muted }]}
+            onPress={handleSubmitFeedback}
+            disabled={submitting || !feedbackText.trim()}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={[styles.btnText, { color: feedbackText.trim() ? "#fff" : colors.mutedForeground }]}>
+                Submit Feedback
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* Danger zone */}
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Account</Text>
+        {/* Account actions */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <Feather name="settings" size={17} color={colors.mutedForeground} />
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Account</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.actionRow, { borderColor: colors.border }]}
-          onPress={handleClearHistory}
-        >
-          <Feather name="trash-2" size={18} color={colors.destructive} />
-          <Text style={[styles.actionText, { color: colors.destructive }]}>
-            Clear Quiz History
-          </Text>
-          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionRow, { borderTopColor: colors.border }]}
+            onPress={handleClearHistory}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#fee2e2" }]}>
+              <Feather name="trash-2" size={15} color={colors.destructive} />
+            </View>
+            <Text style={[styles.actionText, { color: colors.destructive }]}>Clear Quiz History</Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionRow, { borderColor: "transparent" }]}
-          onPress={handleSignOut}
-        >
-          <Feather name="log-out" size={18} color={colors.mutedForeground} />
-          <Text style={[styles.actionText, { color: colors.mutedForeground }]}>
-            Sign Out
-          </Text>
-          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <TouchableOpacity
+            style={[styles.actionRow, { borderTopColor: colors.border }]}
+            onPress={handleSignOut}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.muted }]}>
+              <Feather name="log-out" size={15} color={colors.mutedForeground} />
+            </View>
+            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Sign Out</Text>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {},
-  headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
-  userCard: {
+  root: { flex: 1 },
+
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
+  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
+
+  avatarSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSmallText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  content: { paddingTop: 20 },
+
+  infoCard: {
     marginHorizontal: 20,
     marginBottom: 16,
     padding: 20,
@@ -210,34 +227,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  avatarLarge: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-  },
-  userInfo: { flex: 1 },
-  userEmail: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
-  userMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  avatarLargeText: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
+  infoRows: { flex: 1, gap: 8 },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  infoValue: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+
   section: {
     marginHorizontal: 20,
     marginBottom: 16,
     padding: 20,
     borderRadius: 20,
     borderWidth: 1,
-    gap: 12,
+    gap: 14,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.4,
-  },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: -0.4 },
+
   textarea: {
     borderWidth: 1,
     borderRadius: 12,
@@ -256,18 +268,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   successText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  btn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
+  btn: { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
   btnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  actionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
 });

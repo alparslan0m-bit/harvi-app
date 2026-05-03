@@ -20,9 +20,6 @@ import { useHierarchy } from "@/hooks/useHierarchy";
 
 function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-
   const isRLS = error.message.includes("row-level security") || error.message.includes("42501");
   const isMissing =
     (error.message.includes("relation") && error.message.includes("does not exist")) ||
@@ -31,7 +28,7 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.errorContainer, { paddingTop: topPad + 32 }]}
+      contentContainerStyle={styles.errorContainer}
     >
       <View style={[styles.errorIcon, { backgroundColor: "#fef2f2" }]}>
         <Feather name="alert-triangle" size={28} color={colors.destructive} />
@@ -39,7 +36,6 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
       <Text style={[styles.errorTitle, { color: colors.foreground }]}>
         {isMissing ? "Database tables not found" : isRLS ? "Access denied" : "Could not load content"}
       </Text>
-
       {isMissing && (
         <View style={[styles.infoBox, { backgroundColor: "#fef2f2", borderColor: "#fecaca" }]}>
           <Text style={[styles.infoText, { color: "#7f1d1d" }]}>
@@ -51,7 +47,6 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
           </Text>
         </View>
       )}
-
       {isRLS && (
         <View style={[styles.infoBox, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
           <Text style={[styles.infoText, { color: "#78350f" }]}>
@@ -63,7 +58,6 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
           </Text>
         </View>
       )}
-
       {!isMissing && !isRLS && (
         <View style={[styles.infoBox, { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" }]}>
           <Text style={[styles.infoText, { color: "#0c4a6e" }]} selectable>
@@ -71,7 +65,6 @@ function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
           </Text>
         </View>
       )}
-
       <TouchableOpacity
         style={[styles.retryBtn, { backgroundColor: colors.primary }]}
         onPress={onRetry}
@@ -99,72 +92,104 @@ export default function LearnScreen() {
 
   if (isLoading || authLoading) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-          Loading curriculum...
-        </Text>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Browse your study materials</Text>
+        </View>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+            Loading curriculum...
+          </Text>
+        </View>
       </View>
     );
   }
 
   if (error) {
-    return <ErrorState error={error as Error} onRetry={refetch} />;
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Browse your study materials</Text>
+        </View>
+        <ErrorState error={error as Error} onRetry={refetch} />
+      </View>
+    );
   }
 
+  const yearCount = years?.length ?? 0;
+
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: topPad + 24, paddingBottom: insets.bottom + 100 },
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
-      }
-    >
-      <View style={styles.headerSection}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* ── Fixed header ──────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          {yearCount > 0 ? `${yearCount} year${yearCount !== 1 ? "s" : ""} · Pick one to start` : "Browse your study materials"}
+        </Text>
       </View>
 
-      {years?.map((year, i) => (
-        <YearCard
-          key={year.id}
-          year={year}
-          index={i}
-          onPress={() =>
-            router.push({
-              pathname: "/year/[id]",
-              params: { id: year.id, index: String(i) },
-            })
-          }
-        />
-      ))}
+      {/* ── Scrollable content ────────────────────────────────────────── */}
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
+        }
+      >
+        {years?.map((year, i) => (
+          <YearCard
+            key={year.id}
+            year={year}
+            index={i}
+            onPress={() =>
+              router.push({
+                pathname: "/year/[id]",
+                params: { id: year.id, index: String(i) },
+              })
+            }
+          />
+        ))}
 
-      {(!years || years.length === 0) && (
-        <View style={styles.emptyState}>
-          <Feather name="book-open" size={40} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No content yet</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Your curriculum will appear here once years and modules are added to your database.
-          </Text>
-        </View>
-      )}
-    </ScrollView>
+        {(!years || years.length === 0) && (
+          <View style={styles.emptyState}>
+            <View style={[styles.emptyIcon, { backgroundColor: "#f0f9ff" }]}>
+              <Feather name="book-open" size={32} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No content yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Your curriculum will appear here once years and modules are added to your database.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
+  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
+
+  content: { paddingTop: 20 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  content: {},
-  headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
+
   emptyState: { alignItems: "center", paddingHorizontal: 40, paddingTop: 60, gap: 12 },
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
-  errorContainer: { flex: 1, alignItems: "center", paddingHorizontal: 24, paddingBottom: 60, gap: 16 },
+
+  errorContainer: { alignItems: "center", paddingHorizontal: 24, paddingTop: 40, paddingBottom: 60, gap: 16 },
   errorIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   errorTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5, textAlign: "center" },
   infoBox: { width: "100%", padding: 16, borderRadius: 14, borderWidth: 1 },

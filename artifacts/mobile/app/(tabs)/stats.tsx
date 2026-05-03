@@ -28,289 +28,249 @@ export default function StatsScreen() {
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
+  const today = new Date().toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long",
+  });
 
-  if (error) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Feather name="alert-circle" size={40} color={colors.mutedForeground} />
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-          Couldn't load stats
-        </Text>
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-          {(error as Error).message}
-        </Text>
-      </View>
-    );
-  }
-
-  if (!stats || stats.total_quizzes === 0) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <View style={[styles.emptyIcon, { backgroundColor: "#f0f9ff" }]}>
-          <Feather name="bar-chart-2" size={32} color={colors.primary} />
-        </View>
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-          No stats yet
-        </Text>
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-          Complete your first quiz to start tracking your performance and progress.
-        </Text>
-      </View>
-    );
-  }
-
-  const weekData = stats.weekly_activity ?? [
-    { day: "Mon", count: 0 },
-    { day: "Tue", count: 0 },
-    { day: "Wed", count: 0 },
-    { day: "Thu", count: 0 },
-    { day: "Fri", count: 0 },
-    { day: "Sat", count: 0 },
+  const weekData = stats?.weekly_activity ?? [
+    { day: "Mon", count: 0 }, { day: "Tue", count: 0 }, { day: "Wed", count: 0 },
+    { day: "Thu", count: 0 }, { day: "Fri", count: 0 }, { day: "Sat", count: 0 },
     { day: "Sun", count: 0 },
   ];
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: topPad + 24, paddingBottom: insets.bottom + 100 },
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={refetch}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <View style={styles.headerSection}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
-      </View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
 
-      {/* Key Metrics */}
-      <View style={styles.statsGrid}>
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Quizzes"
-            value={stats.total_quizzes ?? 0}
-            icon={<Feather name="check-square" size={18} color={colors.primary} />}
-            accent
-          />
-          <StatCard
-            label="Questions"
-            value={stats.total_questions ?? 0}
-            icon={<Feather name="help-circle" size={18} color={colors.mutedForeground} />}
-          />
+      {/* ── Fixed header ──────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{today}</Text>
         </View>
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Avg Score"
-            value={`${Math.round(stats.average_score ?? 0)}%`}
-            icon={<Feather name="trending-up" size={18} color={colors.mutedForeground} />}
-          />
-          <StatCard
-            label="Best Score"
-            value={`${Math.round(stats.best_score ?? 0)}%`}
-            icon={<Feather name="award" size={18} color={colors.warning} />}
-          />
-        </View>
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Day Streak"
-            value={stats.streak ?? 0}
-            icon={<Feather name="zap" size={18} color={colors.warning} />}
-          />
-        </View>
-      </View>
-
-      {/* Weekly Activity */}
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Weekly Activity
-        </Text>
-        <WeeklyChart data={weekData} />
-      </View>
-
-      {/* Subject Mastery */}
-      {stats.subject_mastery && stats.subject_mastery.length > 0 && (
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Pressable
-            style={styles.sectionHeader}
-            onPress={() => router.push("/stats/mastery")}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
-              Lecture Mastery
+        {stats && stats.streak > 0 && (
+          <View style={[styles.streakBadge, { backgroundColor: "#fffbeb" }]}>
+            <Feather name="zap" size={14} color={colors.warning} />
+            <Text style={[styles.streakText, { color: colors.warning }]}>
+              {stats.streak}d
             </Text>
-            <View style={styles.seeAll}>
-              <Text style={[styles.seeAllText, { color: colors.primary }]}>
-                See all {stats.subject_mastery.length}
-              </Text>
-              <Feather name="chevron-right" size={15} color={colors.primary} />
-            </View>
-          </Pressable>
-          <View style={{ marginTop: 16 }}>
-            {stats.subject_mastery.slice(0, 3).map((item, i) => (
-              <MasteryBar key={i} subject={item.subject} mastery={item.mastery} />
-            ))}
           </View>
-          {stats.subject_mastery.length > 3 && (
-            <Pressable
-              style={[styles.moreBtn, { borderColor: colors.border }]}
-              onPress={() => router.push("/stats/mastery")}
-            >
-              <Text style={[styles.moreBtnText, { color: colors.primary }]}>
-                View {stats.subject_mastery.length - 3} more lectures
-              </Text>
-              <Feather name="arrow-right" size={14} color={colors.primary} />
-            </Pressable>
-          )}
+        )}
+      </View>
+
+      {/* ── Loading ───────────────────────────────────────────────────── */}
+      {isLoading && (
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       )}
 
-      {/* Recent Results */}
-      {stats.recent_results && stats.recent_results.length > 0 && (
-        <View style={styles.recentSection}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, paddingHorizontal: 0 }]}>
-            Recent Results
+      {/* ── Error ────────────────────────────────────────────────────── */}
+      {!isLoading && error && (
+        <View style={styles.center}>
+          <Feather name="alert-circle" size={40} color={colors.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn't load stats</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            {(error as Error).message}
           </Text>
-          {stats.recent_results.slice(0, 10).map((result, i) => (
-            <View
-              key={i}
-              style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={styles.resultLeft}>
-                <Text style={[styles.resultName, { color: colors.foreground }]} numberOfLines={1}>
-                  {result.lecture_name}
-                </Text>
-                <Text style={[styles.resultDate, { color: colors.mutedForeground }]}>
-                  {new Date(result.created_at).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.scoreBadge,
-                  {
-                    backgroundColor:
-                      result.score >= 80
-                        ? "#d1fae5"
-                        : result.score >= 50
-                        ? "#fef3c7"
-                        : "#fee2e2",
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.scoreText,
-                    {
-                      color:
-                        result.score >= 80
-                          ? colors.success
-                          : result.score >= 50
-                          ? colors.warning
-                          : colors.destructive,
-                    },
-                  ]}
-                >
-                  {Math.round(result.score)}%
-                </Text>
-              </View>
-            </View>
-          ))}
         </View>
       )}
-    </ScrollView>
+
+      {/* ── Empty ────────────────────────────────────────────────────── */}
+      {!isLoading && !error && (!stats || stats.total_quizzes === 0) && (
+        <View style={styles.center}>
+          <View style={[styles.emptyIcon, { backgroundColor: "#f0f9ff" }]}>
+            <Feather name="bar-chart-2" size={32} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No stats yet</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            Complete your first quiz to start tracking your performance and progress.
+          </Text>
+        </View>
+      )}
+
+      {/* ── Content ──────────────────────────────────────────────────── */}
+      {!isLoading && !error && stats && stats.total_quizzes > 0 && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
+          }
+        >
+          {/* Key Metrics */}
+          <View style={styles.statsGrid}>
+            <View style={styles.statsRow}>
+              <StatCard
+                label="Quizzes"
+                value={stats.total_quizzes ?? 0}
+                icon={<Feather name="check-square" size={18} color={colors.primary} />}
+                accent
+              />
+              <StatCard
+                label="Questions"
+                value={stats.total_questions ?? 0}
+                icon={<Feather name="help-circle" size={18} color={colors.mutedForeground} />}
+              />
+            </View>
+            <View style={styles.statsRow}>
+              <StatCard
+                label="Avg Score"
+                value={`${Math.round(stats.average_score ?? 0)}%`}
+                icon={<Feather name="trending-up" size={18} color={colors.mutedForeground} />}
+              />
+              <StatCard
+                label="Best Score"
+                value={`${Math.round(stats.best_score ?? 0)}%`}
+                icon={<Feather name="award" size={18} color={colors.warning} />}
+              />
+            </View>
+          </View>
+
+          {/* Weekly Activity */}
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Weekly Activity</Text>
+            <WeeklyChart data={weekData} />
+          </View>
+
+          {/* Lecture Mastery */}
+          {stats.subject_mastery && stats.subject_mastery.length > 0 && (
+            <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Pressable style={styles.sectionHeader} onPress={() => router.push("/stats/mastery")}>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                  Lecture Mastery
+                </Text>
+                <View style={styles.seeAll}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                    See all {stats.subject_mastery.length}
+                  </Text>
+                  <Feather name="chevron-right" size={15} color={colors.primary} />
+                </View>
+              </Pressable>
+              <View style={{ marginTop: 16 }}>
+                {stats.subject_mastery.slice(0, 3).map((item, i) => (
+                  <MasteryBar key={i} subject={item.subject} mastery={item.mastery} />
+                ))}
+              </View>
+              {stats.subject_mastery.length > 3 && (
+                <Pressable
+                  style={[styles.moreBtn, { borderColor: colors.border }]}
+                  onPress={() => router.push("/stats/mastery")}
+                >
+                  <Text style={[styles.moreBtnText, { color: colors.primary }]}>
+                    View {stats.subject_mastery.length - 3} more lectures
+                  </Text>
+                  <Feather name="arrow-right" size={14} color={colors.primary} />
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {/* Recent Results */}
+          {stats.recent_results && stats.recent_results.length > 0 && (
+            <View style={styles.recentSection}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Results</Text>
+              {stats.recent_results.slice(0, 10).map((result, i) => (
+                <View
+                  key={i}
+                  style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <View style={styles.resultLeft}>
+                    <Text style={[styles.resultName, { color: colors.foreground }]} numberOfLines={1}>
+                      {result.lecture_name}
+                    </Text>
+                    <Text style={[styles.resultDate, { color: colors.mutedForeground }]}>
+                      {new Date(result.created_at).toLocaleDateString("en-GB", {
+                        day: "numeric", month: "short", year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.scoreBadge,
+                      {
+                        backgroundColor:
+                          result.score >= 80 ? "#d1fae5" : result.score >= 50 ? "#fef3c7" : "#fee2e2",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.scoreText,
+                        {
+                          color:
+                            result.score >= 80
+                              ? colors.success
+                              : result.score >= 50
+                              ? colors.warning
+                              : colors.destructive,
+                        },
+                      ]}
+                    >
+                      {Math.round(result.score)}%
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingHorizontal: 40,
+  root: { flex: 1 },
+
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "flex-end",
   },
-  content: {},
-  headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
-  statsGrid: { paddingHorizontal: 20, gap: 10, marginBottom: 20 },
-  statsRow: { flexDirection: "row", gap: 10 },
-  section: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.4,
-    marginBottom: 16,
-  },
-  sectionHeader: {
+  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
+  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
+  streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 2,
   },
+  streakText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
+  content: { paddingTop: 20 },
+
+  statsGrid: { paddingHorizontal: 20, gap: 10, marginBottom: 16 },
+  statsRow: { flexDirection: "row", gap: 10 },
+
+  section: { marginHorizontal: 20, marginBottom: 16, padding: 20, borderRadius: 20, borderWidth: 1 },
+  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: -0.4, marginBottom: 16 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
   seeAllText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   moreBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 4,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, marginTop: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
   },
   moreBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
   recentSection: { paddingHorizontal: 20, marginBottom: 16 },
   resultCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
+    flexDirection: "row", alignItems: "center", padding: 14,
+    borderRadius: 14, borderWidth: 1, marginBottom: 8,
   },
   resultLeft: { flex: 1, gap: 2 },
   resultName: { fontSize: 14, fontFamily: "Inter_500Medium" },
   resultDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  scoreBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
+  scoreBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   scoreText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
+
+  emptyIcon: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
 });
