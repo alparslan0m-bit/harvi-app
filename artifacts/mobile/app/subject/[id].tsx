@@ -12,9 +12,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LectureCard } from "@/components/LectureCard";
+import { SubjectDownloadButton } from "@/components/SubjectDownloadButton";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
 import { useProgress } from "@/hooks/useProgress";
+import { useSubjectCache } from "@/hooks/useSubjectCache";
 
 export default function SubjectScreen() {
   const colors = useColors();
@@ -28,6 +30,9 @@ export default function SubjectScreen() {
     .flatMap((m) => m.subjects)
     .find((s) => s.id === id);
 
+  const { status, progress, lectureInfo, downloadSubject, newQuestionCount } =
+    useSubjectCache(subject);
+
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   if (!subject) return null;
@@ -36,8 +41,11 @@ export default function SubjectScreen() {
     (lec) => completedIds.has(lec.external_id) || completedIds.has(lec.id)
   ).length;
 
+  const totalCount = subject.lectures.length;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <View
         style={[
           styles.header,
@@ -51,11 +59,48 @@ export default function SubjectScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
-          {subject.name}
-        </Text>
+
+        <View style={styles.headerText}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
+            {subject.name}
+          </Text>
+          {totalCount > 0 && (
+            <Text style={[styles.headerMeta, { color: colors.mutedForeground }]}>
+              {completedCount} / {totalCount} completed
+            </Text>
+          )}
+        </View>
       </View>
 
+      {/* ── Download row ─────────────────────────────────────────────────── */}
+      {totalCount > 0 && (
+        <View style={[styles.downloadRow, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <View style={styles.downloadLeft}>
+            <Feather name="wifi-off" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.downloadLabel, { color: colors.mutedForeground }]}>
+              Offline access
+            </Text>
+          </View>
+          <SubjectDownloadButton
+            status={status}
+            progress={progress}
+            newQuestionCount={newQuestionCount}
+            onPress={downloadSubject}
+          />
+        </View>
+      )}
+
+      {/* ── New-questions banner ─────────────────────────────────────────── */}
+      {status === "stale" && newQuestionCount > 0 && (
+        <View style={[styles.staleBanner, { backgroundColor: "#fefce8", borderColor: "#fde047" }]}>
+          <Feather name="alert-circle" size={14} color="#92400e" />
+          <Text style={[styles.staleText, { color: "#92400e" }]}>
+            {newQuestionCount} new question{newQuestionCount !== 1 ? "s" : ""} added to this subject — tap "Update available" to get the latest.
+          </Text>
+        </View>
+      )}
+
+      {/* ── Lecture list ─────────────────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
@@ -64,12 +109,18 @@ export default function SubjectScreen() {
 
         {subject.lectures.map((lec, i) => {
           const isCompleted = completedIds.has(lec.external_id) || completedIds.has(lec.id);
+          const info = lectureInfo.find((li) => li.lectureId === lec.id);
+          const isCached = info?.isCached ?? false;
+          const hasNewQuestions = info?.isStale ?? false;
+
           return (
             <LectureCard
               key={lec.id}
               lecture={lec}
               index={i}
               completed={isCompleted}
+              isCached={isCached}
+              hasNewQuestions={hasNewQuestions}
               onPress={() =>
                 router.push({
                   pathname: "/quiz/[lectureId]",
@@ -94,10 +145,10 @@ export default function SubjectScreen() {
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 14,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
@@ -107,8 +158,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    marginTop: 4,
   },
-  headerTitle: { flex: 1, fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
+  headerText: { flex: 1, gap: 3 },
+  headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 34 },
+  headerMeta: { fontSize: 13, fontFamily: "Inter_400Regular" },
+
+  downloadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  downloadLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
+  downloadLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
+
+  staleBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  staleText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+
   list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,

@@ -14,12 +14,23 @@ interface Props {
   lecture: Lecture;
   index: number;
   completed?: boolean;
+  /** True when new questions were added since this lecture was last downloaded */
+  hasNewQuestions?: boolean;
+  /** True when questions are pre-cached for offline use */
+  isCached?: boolean;
   onPress: () => void;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function LectureCard({ lecture, index, completed = false, onPress }: Props) {
+export function LectureCard({
+  lecture,
+  index,
+  completed = false,
+  hasNewQuestions = false,
+  isCached = false,
+  onPress,
+}: Props) {
   const colors = useColors();
   const scale = useSharedValue(1);
 
@@ -42,6 +53,7 @@ export function LectureCard({ lecture, index, completed = false, onPress }: Prop
       onPressOut={() => { scale.value = withSpring(1, { damping: 20 }); }}
       activeOpacity={1}
     >
+      {/* Index / completed badge */}
       <View style={[styles.indexBadge, { backgroundColor: completed ? "#dcfce7" : colors.muted }]}>
         <Text style={[styles.indexText, { color: completed ? colors.success : colors.mutedForeground }]}>
           {index + 1}
@@ -49,16 +61,35 @@ export function LectureCard({ lecture, index, completed = false, onPress }: Prop
       </View>
 
       <View style={styles.textCol}>
-        <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
-          {lecture.name}
-        </Text>
-        {lecture.question_count != null && lecture.question_count > 0 && (
-          <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-            {lecture.question_count} questions
+        {/* Title row with optional "NEW" badge */}
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
+            {lecture.name}
           </Text>
-        )}
+          {hasNewQuestions && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Meta row: question count + cached indicator */}
+        <View style={styles.metaRow}>
+          {lecture.question_count != null && lecture.question_count > 0 && (
+            <Text style={[styles.meta, { color: colors.mutedForeground }]}>
+              {lecture.question_count} questions
+            </Text>
+          )}
+          {isCached && !hasNewQuestions && (
+            <View style={styles.cachedChip}>
+              <Feather name="download" size={9} color={colors.primary} />
+              <Text style={[styles.cachedText, { color: colors.primary }]}>cached</Text>
+            </View>
+          )}
+        </View>
       </View>
 
+      {/* Right icon */}
       {completed ? (
         <View style={[styles.checkCircle, { backgroundColor: colors.success }]}>
           <Feather name="check" size={14} color="#fff" />
@@ -96,14 +127,38 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   indexText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  textCol: { flex: 1, gap: 2 },
+  textCol: { flex: 1, gap: 3 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   title: {
     fontSize: 15,
     fontFamily: "Inter_500Medium",
     letterSpacing: -0.2,
     lineHeight: 20,
+    flexShrink: 1,
   },
+  newBadge: {
+    backgroundColor: "#0ea5e9",
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  newBadgeText: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  cachedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  cachedText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
   checkCircle: {
     width: 28,
     height: 28,

@@ -229,6 +229,30 @@ export default function QuizScreen() {
 
   // ── Error / empty ──────────────────────────────────────────────────────────
   if (error || !questions || questions.length === 0) {
+    const isOfflineError = !!(error as Error)?.message?.includes("offline");
+
+    if (isOfflineError) {
+      return (
+        <View style={[styles.centerScreen, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
+          <View style={[styles.warmingIcon, { backgroundColor: "#fef9c3" }]}>
+            <Feather name="wifi-off" size={32} color="#92400e" />
+          </View>
+          <Text style={[styles.warmingTitle, { color: colors.foreground }]}>Not downloaded</Text>
+          <Text style={[styles.warmingText, { color: colors.mutedForeground, marginTop: 8, textAlign: "center", lineHeight: 22 }]}>
+            Go back to the subject and tap{"\n"}
+            <Text style={{ fontFamily: "Inter_700Bold", color: colors.foreground }}>"Download offline"</Text>
+            {" "}while connected to the internet.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={[styles.actionBtn, { backgroundColor: colors.primary, marginTop: 28 }]}
+          >
+            <Text style={styles.actionBtnText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.centerScreen, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
         <Feather name="alert-circle" size={40} color={colors.mutedForeground} style={{ marginBottom: 16 }} />

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { decryptAnswer, safeBtoa } from "@/lib/crypto";
+import { loadQuestionsFromCache, saveQuestionsToCache } from "@/lib/questionCache";
 import { supabase } from "@/lib/supabase";
 import { Question } from "@/types";
 
@@ -21,7 +22,6 @@ function pick(row: Record<string, unknown>, candidates: string[]): unknown {
   return null;
 }
 
-/** Fisher-Yates shuffle — returns a new array */
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -56,37 +56,31 @@ function parseOptions(raw: unknown): string[] {
   return arr.map(extractOptionText).filter(Boolean);
 }
 
-/**
- * Resolve correct answer index to 0-based.
- * Databases often store 1-based (1=A, 2=B …) or letters ("A","B" …).
- */
 function resolveAnswerIndex(rawAnswer: unknown, optionCount: number): number {
   if (typeof rawAnswer === "number") {
-    // 1-based: 1..N  → subtract 1
     if (rawAnswer >= 1 && rawAnswer <= optionCount) return rawAnswer - 1;
-    // 0-based: 0..N-1 → keep
     if (rawAnswer >= 0 && rawAnswer < optionCount) return rawAnswer;
     return 0;
   }
   if (typeof rawAnswer === "string") {
     const num = parseInt(rawAnswer, 10);
     if (!isNaN(num)) return resolveAnswerIndex(num, optionCount);
-    const idx = rawAnswer.trim().toUpperCase().charCodeAt(0) - 65; // A=0
+    const idx = rawAnswer.trim().toUpperCase().charCodeAt(0) - 65;
     return idx >= 0 && idx < optionCount ? idx : 0;
   }
   return 0;
 }
 
-/** Build a { answer, explanation } payload as Unicode-safe base64 */
 function buildSecure(row: Record<string, unknown>, options: string[]): string {
-  // Try XOR-encrypted field
   const rawSecure = pick(row, SECURE_CANDIDATES);
   if (rawSecure && typeof rawSecure === "string" && rawSecure.length > 0) {
     try {
       const decoded = atob(rawSecure);
       let decrypted = "";
       for (let i = 0; i < decoded.length; i++) {
-        decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length));
+        decrypted += String.fromCharCode(
+          decoded.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length)
+        );
       }
       const parsed = JSON.parse(decrypted);
       if (typeof parsed.answer === "number") {
@@ -95,7 +89,6 @@ function buildSecure(row: Record<string, unknown>, options: string[]): string {
       }
     } catch { /* fall through */ }
 
-    // Try plain JSON inside the secure field
     try {
       const parsed = JSON.parse(rawSecure);
       if (typeof parsed.answer === "number") {
@@ -105,16 +98,12 @@ function buildSecure(row: Record<string, unknown>, options: string[]): string {
     } catch { /* fall through */ }
   }
 
-  // Fall back to separate answer + explanation columns
   const rawAnswer = pick(row, ANSWER_CANDIDATES);
   const explanation = str(pick(row, EXPLANATION_CANDIDATES) ?? "");
   const answerIndex = resolveAnswerIndex(rawAnswer, options.length);
   return safeBtoa(JSON.stringify({ answer: answerIndex, explanation }));
 }
 
-/**
- * Shuffle options array and return new options + updated correct index.
- */
 function shuffleOptions(
   options: string[],
   correctIndex: number
@@ -127,7 +116,11 @@ function shuffleOptions(
   };
 }
 
-async function fetchQuestions(lectureId: string): Promise<Question[]> {
+/**
+ * Exported so useSubjectCache can call it directly to pre-populate the
+ * question cache for all lectures in a subject ("Download for offline").
+ */
+export async function fetchQuestions(lectureId: string): Promise<Question[]> {
   for (const fkCol of LECTURE_FK_CANDIDATES) {
     const { data, error } = await supabase
       .from("questions")
@@ -140,7 +133,6 @@ async function fetchQuestions(lectureId: string): Promise<Question[]> {
     }
 
     if (data && data.length > 0) {
-      // 1. Build questions with resolved answer indices
       const raw: Question[] = data.map((row: Record<string, unknown>, i: number) => {
         const options = parseOptions(pick(row, OPTIONS_CANDIDATES));
         return {
@@ -151,10 +143,8 @@ async function fetchQuestions(lectureId: string): Promise<Question[]> {
         };
       });
 
-      // 2. Shuffle question order
       const shuffledQs = shuffle(raw);
 
-      // 3. Shuffle options within each question (keeping answer index consistent)
       return shuffledQs.map((q) => {
         try {
           const { answer, explanation } = decryptAnswer(q.secure);
@@ -177,10 +167,30 @@ async function fetchQuestions(lectureId: string): Promise<Question[]> {
 export function useQuizQuestions(lectureId: string) {
   return useQuery({
     queryKey: ["quiz", lectureId],
-    queryFn: () => fetchQuestions(lectureId),
+    queryFn: async () => {
+      try {
+        const questions = await fetchQuestions(lectureId);
+        // Auto-update the cache on every successful online fetch — keeps the
+        // snapshot fresh so users who study online are always ready for offline.
+        if (questions.length > 0) {
+          saveQuestionsToCache(lectureId, questions); // fire-and-forget
+        }
+        return questions;
+      } catch {
+        // Network unavailable — serve from the pre-downloaded cache
+        const cached = await loadQuestionsFromCache(lectureId);
+        if (cached && cached.questions.length > 0) {
+          return cached.questions;
+        }
+        throw new Error(
+          "You're offline and this lecture hasn't been downloaded yet.\n\nDownload the subject while online to take quizzes offline."
+        );
+      }
+    },
     enabled: !!lectureId,
     retry: 0,
-    gcTime: 0,    // don't keep stale questions in cache
-    staleTime: 0, // always re-shuffle on mount
+    gcTime: 0,    // don't keep in RQ memory — always load fresh or from cache
+    staleTime: 0,
+    networkMode: "offlineFirst",
   });
 }
