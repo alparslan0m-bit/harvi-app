@@ -19,6 +19,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useQuizQuestions } from "@/hooks/useQuiz";
@@ -91,6 +93,7 @@ function OptionButton({
 export default function QuizScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { lectureId, lectureName } = useLocalSearchParams<{ lectureId: string; lectureName: string }>();
   const { user } = useAuth();
   const { data: questions, isLoading, error } = useQuizQuestions(lectureId);
@@ -138,6 +141,9 @@ export default function QuizScreen() {
         total_questions: questions.length,
         correct_answers: correctCount,
       });
+      // Invalidate progress + stats so subject screen shows correct completion state
+      queryClient.invalidateQueries({ queryKey: ["progress"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       setSubmitting(false);
     } else {
       setCurrentIndex((i) => i + 1);
