@@ -41,15 +41,7 @@ export function SubjectCard({ subject, index, onPress }: Props) {
         style={styles.gradient}
       >
         <View style={styles.content}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Subject {index + 1}</Text>
-          </View>
           <Text style={styles.title}>{subject.name}</Text>
-          <View style={styles.meta}>
-            <Text style={styles.metaText}>
-              {subject.lectures.length} {subject.lectures.length === 1 ? "lecture" : "lectures"}
-            </Text>
-          </View>
         </View>
         <View style={styles.decorCircle} />
         <View style={styles.decorCircle2} />
@@ -71,8 +63,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   gradient: {
-    padding: 24,
-    minHeight: 130,
+    padding: 20,
+    minHeight: 90,
     overflow: "hidden",
     position: "relative",
   },

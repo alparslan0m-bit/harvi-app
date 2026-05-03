@@ -43,19 +43,7 @@ export function ModuleCard({ module, index, onPress }: Props) {
         style={styles.gradient}
       >
         <View style={styles.content}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Module {index + 1}</Text>
-          </View>
           <Text style={styles.title}>{module.name}</Text>
-          <View style={styles.meta}>
-            <Text style={styles.metaText}>{module.subjects.length} subjects</Text>
-            {totalLectures > 0 && (
-              <>
-                <Text style={styles.metaDot}>·</Text>
-                <Text style={styles.metaText}>{totalLectures} lectures</Text>
-              </>
-            )}
-          </View>
         </View>
         <View style={styles.decorCircle} />
         <View style={styles.decorCircle2} />
@@ -77,8 +65,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   gradient: {
-    padding: 24,
-    minHeight: 130,
+    padding: 20,
+    minHeight: 90,
     overflow: "hidden",
     position: "relative",
   },
