@@ -85,7 +85,7 @@ export default function ProfileScreen() {
       {/* ── Fixed header ──────────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
-        <Text style={[styles.subtitle, { color: colors.primary }]} numberOfLines={1}>
+        <Text style={[styles.subtitle, { color: colors.primary }]}>
           Account & settings
         </Text>
       </View>
@@ -96,37 +96,45 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
       >
-        {/* Account info card */}
-        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarLargeText}>{initial}</Text>
+
+        {/* ── Hero avatar card ─────────────────────────────────────────── */}
+        <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Avatar ring */}
+          <View style={[styles.avatarRing, { borderColor: colors.primary + "33" }]}>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.avatarText}>{initial}</Text>
+            </View>
           </View>
-          <View style={styles.infoRows}>
-            <View style={styles.infoRow}>
-              <Feather name="mail" size={15} color={colors.mutedForeground} />
-              <Text style={[styles.infoValue, { color: colors.foreground }]} numberOfLines={1}>
-                {user?.email}
+
+          {/* Name / email */}
+          <Text style={[styles.heroEmail, { color: colors.foreground }]} numberOfLines={1}>
+            {user?.email}
+          </Text>
+
+          {/* Member pill */}
+          {memberSince && (
+            <View style={[styles.memberPill, { backgroundColor: colors.primary + "14" }]}>
+              <Feather name="calendar" size={11} color={colors.primary} />
+              <Text style={[styles.memberPillText, { color: colors.primary }]}>
+                Member since {memberSince}
               </Text>
             </View>
-            {memberSince && (
-              <View style={styles.infoRow}>
-                <Feather name="calendar" size={15} color={colors.mutedForeground} />
-                <Text style={[styles.infoValue, { color: colors.mutedForeground }]}>
-                  Member since {memberSince}
-                </Text>
-              </View>
-            )}
-          </View>
+          )}
         </View>
 
-        {/* Feedback */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Feather name="message-square" size={17} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Send Feedback</Text>
-          </View>
+        {/* ── Feedback ────────────────────────────────────────────────── */}
+        <View style={styles.sectionLabel}>
+          <Feather name="message-square" size={13} color={colors.mutedForeground} />
+          <Text style={[styles.sectionLabelText, { color: colors.mutedForeground }]}>FEEDBACK</Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TextInput
-            style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            style={[styles.textarea, {
+              color: colors.foreground,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+            }]}
             placeholder="Share your thoughts, report a bug, or suggest a feature..."
             placeholderTextColor={colors.mutedForeground}
             multiline
@@ -135,58 +143,76 @@ export default function ProfileScreen() {
             onChangeText={setFeedbackText}
             textAlignVertical="top"
           />
+
           {feedbackSent && (
             <View style={[styles.successBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
-              <Feather name="check-circle" size={14} color={colors.success} />
-              <Text style={[styles.successText, { color: colors.success }]}>
+              <Feather name="check-circle" size={14} color="#059669" />
+              <Text style={[styles.successText, { color: "#059669" }]}>
                 Feedback sent — thank you!
               </Text>
             </View>
           )}
+
           <TouchableOpacity
-            style={[styles.btn, { backgroundColor: feedbackText.trim() ? colors.primary : colors.muted }]}
+            style={[
+              styles.submitBtn,
+              { backgroundColor: feedbackText.trim() ? colors.primary : colors.muted },
+            ]}
             onPress={handleSubmitFeedback}
             disabled={submitting || !feedbackText.trim()}
+            activeOpacity={0.8}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={[styles.btnText, { color: feedbackText.trim() ? "#fff" : colors.mutedForeground }]}>
+              <Text style={[styles.submitBtnText, {
+                color: feedbackText.trim() ? "#fff" : colors.mutedForeground,
+              }]}>
                 Submit Feedback
               </Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Account actions */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Feather name="settings" size={17} color={colors.mutedForeground} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Account</Text>
-          </View>
+        {/* ── Account actions ──────────────────────────────────────────── */}
+        <View style={styles.sectionLabel}>
+          <Feather name="settings" size={13} color={colors.mutedForeground} />
+          <Text style={[styles.sectionLabelText, { color: colors.mutedForeground }]}>ACCOUNT</Text>
+        </View>
 
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
           <TouchableOpacity
-            style={[styles.actionRow, { borderTopColor: colors.border }]}
+            style={styles.actionRow}
             onPress={handleClearHistory}
+            activeOpacity={0.7}
           >
-            <View style={[styles.actionIcon, { backgroundColor: "#fee2e2" }]}>
-              <Feather name="trash-2" size={15} color={colors.destructive} />
+            <View style={[styles.actionIconWrap, { backgroundColor: "#fee2e2" }]}>
+              <Feather name="trash-2" size={15} color="#ef4444" />
             </View>
-            <Text style={[styles.actionText, { color: colors.destructive }]}>Clear Quiz History</Text>
+            <Text style={[styles.actionLabel, { color: "#ef4444" }]}>Clear Quiz History</Text>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
           <TouchableOpacity
-            style={[styles.actionRow, { borderTopColor: colors.border }]}
+            style={styles.actionRow}
             onPress={handleSignOut}
+            activeOpacity={0.7}
           >
-            <View style={[styles.actionIcon, { backgroundColor: colors.muted }]}>
+            <View style={[styles.actionIconWrap, { backgroundColor: colors.muted }]}>
               <Feather name="log-out" size={15} color={colors.mutedForeground} />
             </View>
-            <Text style={[styles.actionText, { color: colors.mutedForeground }]}>Sign Out</Text>
+            <Text style={[styles.actionLabel, { color: colors.foreground }]}>Sign Out</Text>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
+
+        {/* App version */}
+        <Text style={[styles.versionText, { color: colors.mutedForeground }]}>
+          Harvi · v1.0.0
+        </Text>
+
       </ScrollView>
     </View>
   );
@@ -203,84 +229,119 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
   subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
 
-  avatarSmall: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  content: { paddingTop: 24, paddingHorizontal: 20 },
+
+  /* Hero card */
+  heroCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    marginBottom: 28,
+    gap: 10,
+  },
+  avatarRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  avatar: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarSmallText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-
-  content: { paddingTop: 20 },
-
-  infoCard: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
+  avatarText: { fontSize: 32, fontFamily: "Inter_700Bold", color: "#fff" },
+  heroEmail: { fontSize: 15, fontFamily: "Inter_600SemiBold", letterSpacing: -0.2 },
+  memberPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 2,
   },
-  avatarLarge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarLargeText: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
-  infoRows: { flex: 1, gap: 8 },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  infoValue: { fontSize: 14, fontFamily: "Inter_500Medium", flex: 1 },
+  memberPillText: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
-  section: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 20,
+  /* Section label */
+  sectionLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  sectionLabelText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.8,
+  },
+
+  /* Generic card */
+  card: {
     borderRadius: 20,
     borderWidth: 1,
-    gap: 14,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
   },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: -0.4 },
 
+  /* Textarea */
   textarea: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    minHeight: 100,
-    lineHeight: 20,
+    minHeight: 96,
+    lineHeight: 22,
   },
   successBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
   },
   successText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  btn: { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
-  btnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  submitBtn: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  submitBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
+  /* Action rows */
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 2,
   },
-  actionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+  actionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
   },
-  actionText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  actionLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 2 },
+
+  versionText: {
+    textAlign: "center",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: -8,
+    marginBottom: 4,
+  },
 });
