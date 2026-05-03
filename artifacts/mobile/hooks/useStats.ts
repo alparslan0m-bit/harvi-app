@@ -1,7 +1,28 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/lib/supabase";
 import { UserStats } from "@/types";
+
+const CACHE_KEY = (uid: string) => `harvi:stats:${uid}`;
+
+async function readCache(userId: string): Promise<UserStats | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY(userId));
+    if (!raw) return null;
+    return JSON.parse(raw) as UserStats;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCache(userId: string, data: UserStats): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CACHE_KEY(userId), JSON.stringify(data));
+  } catch {
+    // silently ignore write errors
+  }
+}
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -44,7 +65,12 @@ async function fetchStats(userId: string): Promise<UserStats> {
     buildLectureNameMap(),
   ]);
 
-  if (quizRes.error) throw quizRes.error;
+  // On network error, serve from AsyncStorage cache
+  if (quizRes.error) {
+    const cached = await readCache(userId);
+    if (cached) return cached;
+    throw quizRes.error;
+  }
   if (!quizRes.data || quizRes.data.length === 0) return ZERO_STATS;
 
   const rows = quizRes.data as Array<{
@@ -134,7 +160,7 @@ async function fetchStats(userId: string): Promise<UserStats> {
     created_at: r.created_at,
   }));
 
-  return {
+  const result: UserStats = {
     total_quizzes,
     total_questions,
     average_score: Math.round(average_score),
@@ -144,6 +170,11 @@ async function fetchStats(userId: string): Promise<UserStats> {
     subject_mastery,
     recent_results,
   };
+
+  // Persist to AsyncStorage so stats are available offline next launch
+  writeCache(userId, result);
+
+  return result;
 }
 
 export function useStats(userId: string | undefined) {
@@ -151,7 +182,9 @@ export function useStats(userId: string | undefined) {
     queryKey: ["stats", userId],
     queryFn: () => fetchStats(userId!),
     enabled: !!userId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 60 * 24,
+    networkMode: "offlineFirst",
     retry: 1,
   });
 }

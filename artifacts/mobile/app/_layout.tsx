@@ -18,7 +18,16 @@ import { AuthProvider } from "@/context/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24,
+      networkMode: "offlineFirst",
+      retry: 1,
+    },
+  },
+});
+
 
 function RootLayoutNav() {
   return (

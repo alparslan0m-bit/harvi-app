@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,7 +23,7 @@ export default function StatsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { data: stats, isLoading, error, refetch, isRefetching } = useStats(user?.id);
+  const { data: stats, isLoading, error } = useStats(user?.id);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -93,9 +92,6 @@ export default function StatsScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
-          }
         >
           {/* Key Metrics */}
           <View style={styles.statsGrid}>
