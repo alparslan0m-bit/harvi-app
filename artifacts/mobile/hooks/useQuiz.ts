@@ -13,6 +13,7 @@ const OPTIONS_CANDIDATES = ["options", "answers", "choices", "opts"];
 const ANSWER_CANDIDATES = ["answer", "correct_answer", "correct", "answer_index", "correct_index"];
 const EXPLANATION_CANDIDATES = ["explanation", "rationale", "reason", "feedback", "solution", "comment"];
 const SECURE_CANDIDATES = ["secure", "encrypted", "encrypted_answer"];
+const IMAGE_URL_CANDIDATES = ["image_url", "image", "picture_url", "photo_url", "img_url", "image_link", "img", "media_url"];
 const XOR_KEY = "harvi-quiz-secure-key-2024";
 
 function str(v: unknown): string { return String(v ?? ""); }
@@ -135,11 +136,13 @@ export async function fetchQuestions(lectureId: string): Promise<Question[]> {
     if (data && data.length > 0) {
       const raw: Question[] = data.map((row: Record<string, unknown>, i: number) => {
         const options = parseOptions(pick(row, OPTIONS_CANDIDATES));
+        const imageUrl = str(pick(row, IMAGE_URL_CANDIDATES) ?? "").trim();
         return {
           id: str(row.id ?? i),
           text: str(pick(row, TEXT_CANDIDATES) ?? ""),
           options,
           secure: buildSecure(row, options),
+          image_url: imageUrl || undefined,
         };
       });
 

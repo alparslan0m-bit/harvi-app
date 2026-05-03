@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { OptionButton } from "@/components/OptionButton";
+import { QuizImage } from "@/components/QuizImage";
 import { QuizLoadingScreen } from "@/components/QuizLoadingScreen";
 import { QuizReviewScreen } from "@/components/QuizReviewScreen";
 import { ResultsView } from "@/components/QuizResultsView";
@@ -319,6 +320,13 @@ export default function QuizScreen() {
             {question.text}
           </Text>
 
+          {/* Question image (anatomy, X-ray, histology, ECG…) */}
+          {!!question.image_url && (
+            <View style={styles.imageWrap}>
+              <QuizImage uri={question.image_url} />
+            </View>
+          )}
+
           {/* Options */}
           <View style={styles.options}>
             {question.options.map((opt, i) => (
@@ -490,6 +498,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
+  imageWrap: { marginBottom: 20 },
   options: { gap: 10, marginBottom: 20 },
 
   // ── Explanation ─────────────────────────────────────────────────────────

@@ -71,35 +71,33 @@ export function OptionButton({ text, index, answered, onSelect }: Props) {
   const labelColor = isCorrect || isWrong ? "#fff" : textColor;
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 65).duration(380).springify()}
-      style={animStyle}
-    >
-      <TouchableOpacity
-        style={[styles.option, { backgroundColor: bgColor, borderColor }]}
-        onPress={() => {
-          if (answered) return;
-          scale.value = withSequence(
-            withSpring(0.97, { damping: 20 }),
-            withSpring(1, { damping: 20 })
-          );
-          onSelect(index);
-        }}
-        activeOpacity={0.82}
-        disabled={!!answered}
-      >
-        {/* Letter badge */}
-        <View style={[styles.badge, { backgroundColor: labelBg }]}>
-          <Text style={[styles.badgeText, { color: labelColor }]}>{label}</Text>
-        </View>
+    <Animated.View entering={FadeInDown.delay(index * 65).duration(380).springify()}>
+      <Animated.View style={animStyle}>
+        <TouchableOpacity
+          style={[styles.option, { backgroundColor: bgColor, borderColor }]}
+          onPress={() => {
+            if (answered) return;
+            scale.value = withSequence(
+              withSpring(0.97, { damping: 20 }),
+              withSpring(1, { damping: 20 })
+            );
+            onSelect(index);
+          }}
+          activeOpacity={0.82}
+          disabled={!!answered}
+        >
+          <View style={[styles.badge, { backgroundColor: labelBg }]}>
+            <Text style={[styles.badgeText, { color: labelColor }]}>{label}</Text>
+          </View>
 
-        <Text style={[styles.optionText, { color: textColor }]} numberOfLines={5}>
-          {text}
-        </Text>
+          <Text style={[styles.optionText, { color: textColor }]} numberOfLines={5}>
+            {text}
+          </Text>
 
-        {isCorrect && <Feather name="check-circle" size={20} color="#16a34a" />}
-        {isWrong   && <Feather name="x-circle"     size={20} color="#dc2626" />}
-      </TouchableOpacity>
+          {isCorrect && <Feather name="check-circle" size={20} color="#16a34a" />}
+          {isWrong   && <Feather name="x-circle"     size={20} color="#dc2626" />}
+        </TouchableOpacity>
+      </Animated.View>
     </Animated.View>
   );
 }

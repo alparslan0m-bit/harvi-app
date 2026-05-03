@@ -34,6 +34,8 @@ export interface Question {
   text: string;
   options: string[];
   secure: string;
+  /** Optional image URL (anatomy diagram, X-ray, histology slide, etc.) */
+  image_url?: string;
 }
 
 export interface QuizResult {

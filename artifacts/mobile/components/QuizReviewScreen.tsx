@@ -10,6 +10,7 @@ import {
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { QuizImage } from "@/components/QuizImage";
 import { useColors } from "@/hooks/useColors";
 import { HistoryItem } from "@/types";
 
@@ -106,6 +107,13 @@ export function QuizReviewScreen({ history, totalCount, topPad, onBack }: Props)
                 <Text style={[styles.questionText, { color: colors.foreground }]}>
                   {item.question.text}
                 </Text>
+
+                {/* Question image */}
+                {!!item.question.image_url && (
+                  <View style={styles.reviewImageWrap}>
+                    <QuizImage uri={item.question.image_url} />
+                  </View>
+                )}
 
                 {/* Options */}
                 <View style={styles.optionList}>
@@ -228,6 +236,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     letterSpacing: -0.2,
   },
+
+  reviewImageWrap: { marginBottom: 4 },
 
   // ── Options in review ───────────────────────────────────────────────────
   optionList: { gap: 6 },
