@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health";
 
 const router: IRouter = Router();
 
-router.use(healthRouter);
+// Add protected routes here — health is handled directly in app.ts.
 
 export default router;
