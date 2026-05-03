@@ -80,7 +80,14 @@ export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { session, loading: authLoading } = useAuth();
-  const { data: years, isLoading, error, refetch, isRefetching } = useHierarchy();
+  const { data: years, isLoading, error, refetch } = useHierarchy();
+  const [manualRefreshing, setManualRefreshing] = React.useState(false);
+
+  const handleRefresh = React.useCallback(async () => {
+    setManualRefreshing(true);
+    await refetch();
+    setManualRefreshing(false);
+  }, [refetch]);
 
   useEffect(() => {
     if (!authLoading && !session) {
@@ -136,7 +143,7 @@ export default function LearnScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
+          <RefreshControl refreshing={manualRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
         {years?.map((year, i) => (
