@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   Platform,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -80,14 +79,7 @@ export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { session, loading: authLoading } = useAuth();
-  const { data: years, isLoading, error, refetch } = useHierarchy();
-  const [manualRefreshing, setManualRefreshing] = React.useState(false);
-
-  const handleRefresh = React.useCallback(async () => {
-    setManualRefreshing(true);
-    await refetch();
-    setManualRefreshing(false);
-  }, [refetch]);
+  const { data: years, isLoading, error } = useHierarchy();
 
   useEffect(() => {
     if (!authLoading && !session) {
@@ -142,9 +134,6 @@ export default function LearnScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={manualRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-        }
       >
         {years?.map((year, i) => (
           <YearCard
