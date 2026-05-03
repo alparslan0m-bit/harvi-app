@@ -31,15 +31,15 @@ export default function YearScreen() {
       <View
         style={[
           styles.header,
-          { paddingTop: topPad + 10, backgroundColor: colors.background, borderBottomColor: colors.border },
+          { paddingTop: topPad + 14, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.muted }]}
+          activeOpacity={0.7}
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
-          <Text style={[styles.backLabel, { color: colors.foreground }]}>Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
           {year.name}
@@ -76,23 +76,22 @@ export default function YearScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "column",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-  },
-  backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  headerTitle: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  headerTitle: { flex: 1, fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
   list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,
