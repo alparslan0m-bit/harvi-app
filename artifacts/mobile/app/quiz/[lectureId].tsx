@@ -11,7 +11,12 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  FadeIn,
   FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -69,6 +74,12 @@ export default function QuizScreen() {
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
+  // Animated progress bar width
+  const progressAnim = useSharedValue(0);
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${progressAnim.value * 100}%` as `${number}%`,
+  }));
+
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSelect = useCallback((selectedIndex: number) => {
@@ -77,11 +88,11 @@ export default function QuizScreen() {
     const { answer, explanation } = decryptAnswer(q.secure);
     const isCorrect = selectedIndex === answer;
 
-    if (isCorrect) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
+    Haptics.notificationAsync(
+      isCorrect
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Error
+    );
 
     setAnswered({ selected: selectedIndex, correct: answer, explanation });
     if (isCorrect) setCorrectCount((c) => c + 1);
@@ -110,9 +121,7 @@ export default function QuizScreen() {
           correctAnswers: correctCount,
           createdAt: now,
         });
-        if (user?.id && lectureId) {
-          await optimisticallyMarkComplete(user.id, lectureId);
-        }
+        if (user?.id && lectureId) await optimisticallyMarkComplete(user.id, lectureId);
         setSavedOffline(true);
       } else {
         const { error: insertErr } = await supabase.from("quiz_results").insert({
@@ -133,9 +142,7 @@ export default function QuizScreen() {
             correctAnswers: correctCount,
             createdAt: now,
           });
-          if (user?.id && lectureId) {
-            await optimisticallyMarkComplete(user.id, lectureId);
-          }
+          if (user?.id && lectureId) await optimisticallyMarkComplete(user.id, lectureId);
           setSavedOffline(true);
         }
       }
@@ -159,8 +166,20 @@ export default function QuizScreen() {
     setSavedOffline(false);
     setReviewing(false);
     setHistory([]);
+    progressAnim.value = 0;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep progress bar in sync
+  useEffect(() => {
+    if (!questions) return;
+    progressAnim.value = withSpring((currentIndex + 1) / questions.length, {
+      damping: 22,
+      stiffness: 140,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, questions]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
@@ -173,50 +192,30 @@ export default function QuizScreen() {
   if (error || !questions || questions.length === 0) {
     const isOfflineError = !!(error as Error)?.message?.includes("offline");
 
-    if (isOfflineError) {
-      return (
-        <View style={[styles.centerScreen, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
-          <View style={[styles.warmingIcon, { backgroundColor: "#fef9c3" }]}>
-            <Feather name="wifi-off" size={32} color="#92400e" />
-          </View>
-          <Text style={[styles.warmingTitle, { color: colors.foreground }]}>Not downloaded</Text>
-          <Text style={[styles.warmingText, { color: colors.mutedForeground, marginTop: 8, textAlign: "center", lineHeight: 22 }]}>
-            Go back to the subject and tap{"\n"}
-            <Text style={{ fontFamily: "Inter_700Bold", color: colors.foreground }}>"Download offline"</Text>
-            {" "}while connected to the internet.
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.actionBtn, { backgroundColor: colors.primary, marginTop: 28 }]}
-          >
-            <Text style={styles.actionBtnText}>Go back</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
     return (
       <View style={[styles.centerScreen, { backgroundColor: colors.background, paddingHorizontal: 28 }]}>
-        <Feather name="alert-circle" size={40} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-        <Text style={[styles.warmingTitle, { color: colors.foreground }]}>
-          {error ? "Failed to load questions" : "No questions found"}
+        <View style={[styles.errorIcon, { backgroundColor: isOfflineError ? "#fef9c3" : "#fef2f2" }]}>
+          <Feather
+            name={isOfflineError ? "wifi-off" : "alert-circle"}
+            size={32}
+            color={isOfflineError ? "#92400e" : colors.destructive}
+          />
+        </View>
+        <Text style={[styles.errorTitle, { color: colors.foreground }]}>
+          {isOfflineError ? "Not downloaded" : error ? "Failed to load" : "No questions"}
         </Text>
-        {error && (
-          <Text style={[styles.warmingText, { color: colors.destructive, marginTop: 8, textAlign: "center" }]} selectable>
-            {(error as Error).message}
-          </Text>
-        )}
-        {!error && (
-          <Text style={[styles.warmingText, { color: colors.mutedForeground, marginTop: 8, textAlign: "center" }]}>
-            No questions are linked to this lecture.{"\n\n"}
-            Lecture ID: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{lectureId}</Text>
-          </Text>
-        )}
+        <Text style={[styles.errorBody, { color: colors.mutedForeground }]}>
+          {isOfflineError
+            ? `Go back to the subject and tap "Download offline" while connected to the internet.`
+            : error
+            ? (error as Error).message
+            : `No questions are linked to this lecture.\n\nLecture ID: ${lectureId}`}
+        </Text>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[styles.actionBtn, { backgroundColor: colors.primary, marginTop: 24 }]}
+          style={[styles.errorBtn, { backgroundColor: colors.primary }]}
         >
-          <Text style={styles.actionBtnText}>Go back</Text>
+          <Text style={styles.errorBtnText}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -259,68 +258,142 @@ export default function QuizScreen() {
   // ── Active quiz ───────────────────────────────────────────────────────────
 
   const question = questions[currentIndex];
-  const progress = (currentIndex + 1) / questions.length;
+  const isLast = currentIndex === questions.length - 1;
+  const isCorrectAnswer = answered !== null && answered.selected === answered.correct;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <View style={styles.headerMeta}>
-          <Text style={[styles.lectureTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {lectureName}
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: topPad + 10 }]}>
+        {/* Close button */}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.iconBtn, { backgroundColor: colors.muted }]}
+          activeOpacity={0.75}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="x" size={18} color={colors.foreground} />
+        </TouchableOpacity>
+
+        {/* Lecture name */}
+        <Text style={[styles.lectureName, { color: colors.mutedForeground }]} numberOfLines={1}>
+          {lectureName}
+        </Text>
+
+        {/* Question counter chip */}
+        <View style={[styles.counterChip, { backgroundColor: colors.muted }]}>
+          <Text style={[styles.counterCurrent, { color: colors.foreground }]}>
+            {currentIndex + 1}
           </Text>
-          <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>
-            {currentIndex + 1} / {questions.length}
+          <Text style={[styles.counterTotal, { color: colors.mutedForeground }]}>
+            /{questions.length}
           </Text>
         </View>
       </View>
 
+      {/* ── Progress bar ─────────────────────────────────────────────────── */}
       <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
-        <Animated.View
-          style={[styles.progressFill, { backgroundColor: colors.primary, width: `${progress * 100}%` as `${number}%` }]}
-        />
+        <Animated.View style={[styles.progressFill, { backgroundColor: colors.primary }, progressStyle]} />
       </View>
 
+      {/* ── Question + options ───────────────────────────────────────────── */}
       <ScrollView
-        contentContainerStyle={[styles.quizContent, { paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 130 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Animated.View entering={FadeInDown.duration(300)} key={currentIndex}>
-          <Text style={[styles.questionText, { color: colors.foreground }]}>{question.text}</Text>
+        <Animated.View
+          key={currentIndex}
+          entering={FadeInDown.duration(320).springify()}
+        >
+          {/* Question number label */}
+          <View style={[styles.qChip, { backgroundColor: `${colors.primary}18` }]}>
+            <Text style={[styles.qChipText, { color: colors.primary }]}>
+              QUESTION {currentIndex + 1}
+            </Text>
+          </View>
+
+          {/* Question text */}
+          <Text style={[styles.questionText, { color: colors.foreground }]}>
+            {question.text}
+          </Text>
+
+          {/* Options */}
           <View style={styles.options}>
             {question.options.map((opt, i) => (
-              <OptionButton key={i} text={opt} index={i} answered={answered} onSelect={handleSelect} />
+              <OptionButton
+                key={i}
+                text={opt}
+                index={i}
+                answered={answered}
+                onSelect={handleSelect}
+              />
             ))}
           </View>
+
+          {/* Explanation */}
           {answered && (
             <Animated.View
-              entering={FadeInDown.duration(300)}
-              style={[styles.explanationBox, { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" }]}
+              entering={FadeInUp.duration(320).springify()}
+              style={[
+                styles.explanationBox,
+                isCorrectAnswer
+                  ? { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }
+                  : { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" },
+              ]}
             >
               <View style={styles.explanationHeader}>
-                <Feather name="info" size={16} color={colors.primary} />
-                <Text style={[styles.explanationTitle, { color: colors.primary }]}>Explanation</Text>
+                <View style={[
+                  styles.explanationIconBox,
+                  { backgroundColor: isCorrectAnswer ? "#dcfce7" : "#e0f2fe" }
+                ]}>
+                  <Feather
+                    name={isCorrectAnswer ? "check" : "info"}
+                    size={13}
+                    color={isCorrectAnswer ? "#16a34a" : colors.primary}
+                  />
+                </View>
+                <Text style={[
+                  styles.explanationTitle,
+                  { color: isCorrectAnswer ? "#16a34a" : colors.primary }
+                ]}>
+                  Explanation
+                </Text>
               </View>
-              <Text style={[styles.explanationText, { color: "#0c4a6e" }]}>
-                {answered.explanation || "No explanation available."}
+              <Text style={[
+                styles.explanationText,
+                { color: isCorrectAnswer ? "#14532d" : "#0c4a6e" }
+              ]}>
+                {answered.explanation || "No explanation available for this question."}
               </Text>
             </Animated.View>
           )}
         </Animated.View>
       </ScrollView>
 
+      {/* ── Next / Finish button ──────────────────────────────────────────── */}
       {answered && (
         <Animated.View
-          entering={FadeInDown.duration(250)}
-          style={[styles.nextWrap, { paddingBottom: insets.bottom + 16, backgroundColor: colors.background }]}
+          entering={FadeIn.duration(220)}
+          style={[
+            styles.nextWrap,
+            {
+              paddingBottom: insets.bottom + 20,
+              backgroundColor: colors.background,
+              borderTopColor: colors.border,
+            },
+          ]}
         >
           <TouchableOpacity
             style={[styles.nextBtn, { backgroundColor: colors.primary }]}
             onPress={handleNext}
+            activeOpacity={0.88}
           >
             <Text style={styles.nextBtnText}>
-              {currentIndex === questions.length - 1 ? "Finish Quiz" : "Next Question"}
+              {isLast ? "See Results" : "Next Question"}
             </Text>
-            <Feather name="arrow-right" size={18} color="#fff" />
+            <Feather name={isLast ? "award" : "arrow-right"} size={18} color="#fff" />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -329,60 +402,141 @@ export default function QuizScreen() {
 }
 
 const styles = StyleSheet.create({
-  centerScreen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  warmingIcon: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  warmingTitle: { fontSize: 24, fontFamily: "Inter_700Bold", letterSpacing: -0.6 },
-  warmingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  // ── Error states ────────────────────────────────────────────────────────
+  centerScreen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  errorIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  errorTitle: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
+  errorBody: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: 300,
+  },
+  errorBtn: {
+    marginTop: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  errorBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
   },
-  headerMeta: { flex: 1 },
-  lectureTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", letterSpacing: -0.3 },
-  progressLabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  lectureName: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    letterSpacing: -0.2,
+    textAlign: "center",
+  },
+  counterChip: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    flexShrink: 0,
+  },
+  counterCurrent: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: -0.3 },
+  counterTotal: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
-  progressTrack: { height: 3, width: "100%" },
-  progressFill: { height: "100%" },
+  // ── Progress bar ────────────────────────────────────────────────────────
+  progressTrack: { height: 5, width: "100%" },
+  progressFill: { height: "100%", borderRadius: 3 },
 
-  quizContent: { padding: 20 },
-  questionText: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5, lineHeight: 28, marginBottom: 24 },
+  // ── Quiz content ────────────────────────────────────────────────────────
+  scroll: { padding: 20, paddingTop: 24 },
+
+  qChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginBottom: 14,
+  },
+  qChipText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.1,
+  },
+
+  questionText: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.6,
+    lineHeight: 30,
+    marginBottom: 24,
+  },
+
   options: { gap: 10, marginBottom: 20 },
 
-  explanationBox: { padding: 16, borderRadius: 16, borderWidth: 1.5, gap: 8 },
-  explanationHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  explanationTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  explanationText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  // ── Explanation ─────────────────────────────────────────────────────────
+  explanationBox: {
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    gap: 10,
+  },
+  explanationHeader: { flexDirection: "row", alignItems: "center", gap: 9 },
+  explanationIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  explanationTitle: { fontSize: 13, fontFamily: "Inter_700Bold", letterSpacing: -0.1 },
+  explanationText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 21 },
 
+  // ── Next button ─────────────────────────────────────────────────────────
   nextWrap: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e2e8f0",
   },
   nextBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 17,
+    borderRadius: 18,
     gap: 8,
     shadowColor: "#0ea5e9",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  nextBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold", letterSpacing: -0.3 },
-
-  actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", paddingVertical: 15, borderRadius: 16 },
-  actionBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  nextBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.3,
+  },
 });
