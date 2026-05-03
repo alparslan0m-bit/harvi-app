@@ -17,9 +17,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AvatarById, AvatarId } from "@/components/DoctorAvatars";
+import { AvatarId } from "@/components/DoctorAvatars";
+import { ProfileHeroCard } from "@/components/ProfileHeroCard";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useFeedback } from "@/hooks/useFeedback";
 import { supabase } from "@/lib/supabase";
 
 const AVATAR_KEY = "harvi:avatar";
@@ -29,17 +31,11 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
-  const [feedbackText, setFeedbackText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const [cooldownSecs, setCooldownSecs] = useState(0);
-  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [displayName, setDisplayName] = useState("");
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
 
@@ -48,7 +44,7 @@ export default function ProfileScreen() {
     ? new Date(user.created_at).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
     : null;
 
-  /* Reload avatar + name each time the screen is focused (e.g. returning from edit page) */
+  // Reload avatar + name each time screen is focused (e.g. returning from edit)
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.multiGet([AVATAR_KEY, NAME_KEY]).then((pairs) => {
@@ -60,67 +56,12 @@ export default function ProfileScreen() {
     }, [])
   );
 
-  const FEEDBACK_MIN = 10;
-  const FEEDBACK_MAX = 500;
-  const COOLDOWN_SECS = 60;
-
-  /* Sanitize: strip null bytes, leading/trailing whitespace, collapse runs of whitespace */
-  const sanitize = (text: string) =>
-    text.replace(/\0/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
-
-  const startCooldown = () => {
-    setCooldownSecs(COOLDOWN_SECS);
-    cooldownRef.current = setInterval(() => {
-      setCooldownSecs((s) => {
-        if (s <= 1) {
-          clearInterval(cooldownRef.current!);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  };
-
-  const handleSubmitFeedback = async () => {
-    const clean = sanitize(feedbackText);
-
-    /* Client-side guards */
-    if (clean.length < FEEDBACK_MIN) {
-      setFeedbackError(`Please write at least ${FEEDBACK_MIN} characters.`);
-      return;
-    }
-    if (clean.length > FEEDBACK_MAX) {
-      setFeedbackError(`Feedback must be under ${FEEDBACK_MAX} characters.`);
-      return;
-    }
-    if (cooldownSecs > 0) return;
-    if (!user?.id) {
-      setFeedbackError("You must be signed in to submit feedback.");
-      return;
-    }
-
-    setSubmitting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFeedbackError(null);
-
-    const { error } = await supabase.from("feedback").insert({
-      user_id: user.id,
-      content: clean,
-    });
-
-    setSubmitting(false);
-    if (!error) {
-      setFeedbackText("");
-      setFeedbackSent(true);
-      setFeedbackError(null);
-      startCooldown();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => setFeedbackSent(false), 3000);
-    } else {
-      setFeedbackError(error.message);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
+  const {
+    feedbackText, updateText,
+    submitting, feedbackSent, feedbackError,
+    cooldownSecs, isDisabled, isTooShort,
+    handleSubmit,
+  } = useFeedback(user?.id);
 
   const handleClearHistory = () => {
     Alert.alert(
@@ -160,60 +101,16 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
       >
+        {/* ── Hero card ─────────────────────────────────────────────── */}
+        <ProfileHeroCard
+          avatarId={avatarId}
+          displayName={displayName}
+          email={user?.email}
+          memberSince={memberSince}
+          initial={initial}
+        />
 
-        {/* ── Hero avatar card ─────────────────────────────────────────── */}
-        <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-
-          {/* Edit button — top-right */}
-          <TouchableOpacity
-            style={[styles.editToggle, { backgroundColor: colors.muted }]}
-            onPress={() => router.push("/profile/edit")}
-            activeOpacity={0.8}
-          >
-            <Feather name="edit-2" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.editToggleText, { color: colors.mutedForeground }]}>Edit</Text>
-          </TouchableOpacity>
-
-          {/* Avatar (view-only) */}
-          <View style={styles.avatarWrap}>
-            <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
-              {avatarId ? (
-                <View style={[styles.avatarIllustration, { backgroundColor: "#f0f9ff" }]}>
-                  <AvatarById id={avatarId} size={60} />
-                </View>
-              ) : (
-                <View style={[styles.avatarInitial, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.avatarInitialText}>{initial}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Name */}
-          <Text style={[
-            displayName ? styles.heroName : styles.heroNamePlaceholder,
-            { color: displayName ? colors.foreground : colors.mutedForeground },
-          ]} numberOfLines={1}>
-            {displayName || "Add your name"}
-          </Text>
-
-          {/* Email */}
-          <Text style={[styles.heroEmail, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {user?.email}
-          </Text>
-
-          {/* Member pill */}
-          {memberSince && (
-            <View style={[styles.memberPill, { backgroundColor: colors.primary + "12" }]}>
-              <Feather name="calendar" size={11} color={colors.primary} />
-              <Text style={[styles.memberPillText, { color: colors.primary }]}>
-                Member since {memberSince}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ── Feedback ────────────────────────────────────────────────── */}
+        {/* ── Feedback ──────────────────────────────────────────────── */}
         <View style={styles.sectionLabel}>
           <Feather name="message-square" size={13} color={colors.mutedForeground} />
           <Text style={[styles.sectionLabelText, { color: colors.mutedForeground }]}>FEEDBACK</Text>
@@ -231,16 +128,12 @@ export default function ProfileScreen() {
             multiline
             numberOfLines={4}
             value={feedbackText}
-            onChangeText={(t) => {
-              setFeedbackText(t.slice(0, 500));
-              if (feedbackError) setFeedbackError(null);
-            }}
+            onChangeText={updateText}
             textAlignVertical="top"
             maxLength={500}
-            editable={cooldownSecs === 0 && !submitting}
+            editable={!isDisabled}
           />
 
-          {/* Character counter */}
           <Text style={[styles.charCount, {
             color: feedbackText.length >= 480
               ? "#dc2626"
@@ -252,35 +145,27 @@ export default function ProfileScreen() {
           </Text>
 
           {feedbackSent && (
-            <View style={[styles.successBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
+            <View style={[styles.alertBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
               <Feather name="check-circle" size={14} color="#059669" />
-              <Text style={[styles.successText, { color: "#059669" }]}>
-                Feedback sent — thank you!
-              </Text>
+              <Text style={[styles.alertText, { color: "#059669" }]}>Feedback sent — thank you!</Text>
             </View>
           )}
 
           {feedbackError && (
-            <View style={[styles.successBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
+            <View style={[styles.alertBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
               <Feather name="alert-circle" size={14} color="#dc2626" />
-              <Text style={[styles.successText, { color: "#dc2626", flex: 1 }]} numberOfLines={3}>
+              <Text style={[styles.alertText, { color: "#dc2626", flex: 1 }]} numberOfLines={3}>
                 {feedbackError}
               </Text>
             </View>
           )}
 
           <TouchableOpacity
-            style={[
-              styles.submitBtn,
-              {
-                backgroundColor:
-                  submitting || cooldownSecs > 0 || feedbackText.trim().length < 10
-                    ? colors.muted
-                    : colors.primary,
-              },
-            ]}
-            onPress={handleSubmitFeedback}
-            disabled={submitting || cooldownSecs > 0 || feedbackText.trim().length < 10}
+            style={[styles.submitBtn, {
+              backgroundColor: isDisabled || isTooShort ? colors.muted : colors.primary,
+            }]}
+            onPress={handleSubmit}
+            disabled={isDisabled || isTooShort}
             activeOpacity={0.8}
           >
             {submitting ? (
@@ -294,7 +179,7 @@ export default function ProfileScreen() {
               </View>
             ) : (
               <Text style={[styles.submitBtnText, {
-                color: feedbackText.trim().length < 10 ? colors.mutedForeground : "#fff",
+                color: isTooShort ? colors.mutedForeground : "#fff",
               }]}>
                 Submit Feedback
               </Text>
@@ -302,18 +187,14 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Account actions ──────────────────────────────────────────── */}
+        {/* ── Account ───────────────────────────────────────────────── */}
         <View style={styles.sectionLabel}>
           <Feather name="settings" size={13} color={colors.mutedForeground} />
           <Text style={[styles.sectionLabelText, { color: colors.mutedForeground }]}>ACCOUNT</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
-          <TouchableOpacity
-            style={styles.actionRow}
-            onPress={handleClearHistory}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionRow} onPress={handleClearHistory} activeOpacity={0.7}>
             <View style={[styles.actionIconWrap, { backgroundColor: "#fee2e2" }]}>
               <Feather name="trash-2" size={15} color="#ef4444" />
             </View>
@@ -323,11 +204,7 @@ export default function ProfileScreen() {
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          <TouchableOpacity
-            style={styles.actionRow}
-            onPress={handleSignOut}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionRow} onPress={handleSignOut} activeOpacity={0.7}>
             <View style={[styles.actionIconWrap, { backgroundColor: colors.muted }]}>
               <Feather name="log-out" size={15} color={colors.mutedForeground} />
             </View>
@@ -336,11 +213,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.versionText, { color: colors.mutedForeground }]}>
-          Harvi · v1.0.0
-        </Text>
+        <Text style={[styles.versionText, { color: colors.mutedForeground }]}>Harvi · v1.0.0</Text>
       </ScrollView>
-
     </View>
   );
 }
@@ -354,171 +228,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
-  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
 
   content: { paddingTop: 24, paddingHorizontal: 20 },
 
-  /* Hero card */
-  heroCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: "center",
-    paddingTop: 8,
-    paddingBottom: 14,
-    paddingHorizontal: 18,
-    marginBottom: 20,
-    gap: 3,
-  },
-  editToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-end",
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginBottom: 2,
-  },
-  editToggleText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  avatarWrap: { position: "relative", marginBottom: 4 },
-  avatarRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarIllustration: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  avatarInitial: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitialText: { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff" },
-  editBadge: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroName: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
-  heroNamePlaceholder: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    fontStyle: "italic",
-    marginTop: 2,
-  },
-  heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", letterSpacing: -0.1, marginTop: 2 },
-  memberPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginTop: 4,
-  },
-  memberPillText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  editHint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 6 },
+  sectionLabel: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginLeft: 2 },
+  sectionLabelText: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8 },
 
-  /* Section label */
-  sectionLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 10,
-    marginLeft: 2,
-  },
-  sectionLabelText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.8,
-  },
-
-  /* Generic card */
-  card: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 24,
-    gap: 12,
-  },
+  card: { borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 24, gap: 12 },
 
   textarea: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    minHeight: 96,
-    lineHeight: 22,
+    borderWidth: 1, borderRadius: 14, padding: 14,
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    minHeight: 96, lineHeight: 22,
   },
-  charCount: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    textAlign: "right",
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  successBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  successText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  submitBtn: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
+  charCount: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "right", marginTop: 4, marginBottom: 2 },
+
+  alertBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  alertText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
+  submitBtn: { paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   submitBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
-  /* Action rows */
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingVertical: 13,
-    paddingHorizontal: 2,
-  },
-  actionIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 13, paddingHorizontal: 2 },
+  actionIconWrap: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   actionLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 2 },
 
-  versionText: {
-    textAlign: "center",
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: -8,
-    marginBottom: 4,
-  },
+  versionText: { textAlign: "center", fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -8, marginBottom: 4 },
 });

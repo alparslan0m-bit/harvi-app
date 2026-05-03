@@ -57,3 +57,18 @@ export interface UserStats {
   subject_mastery: { subject: string; mastery: number }[];
   recent_results: QuizResult[];
 }
+
+// ── Quiz session types ──────────────────────────────────────────────────────
+
+export interface AnsweredState {
+  selected: number;
+  correct: number;
+  explanation: string;
+}
+
+export interface HistoryItem {
+  question: Question;
+  selected: number;
+  correct: number;
+  explanation: string;
+}
