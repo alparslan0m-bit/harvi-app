@@ -218,7 +218,7 @@ export default function ProfileScreen() {
             }]}>
               {avatarId ? (
                 <View style={[styles.avatarIllustration, { backgroundColor: "#f0f9ff" }]}>
-                  <AvatarById id={avatarId} size={76} />
+                  <AvatarById id={avatarId} size={60} />
                 </View>
               ) : (
                 <View style={[styles.avatarInitial, { backgroundColor: colors.primary }]}>
@@ -439,47 +439,47 @@ const styles = StyleSheet.create({
 
   /* Hero card */
   heroCard: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 18,
-    paddingHorizontal: 20,
-    marginBottom: 24,
-    gap: 4,
+    paddingTop: 8,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    marginBottom: 20,
+    gap: 3,
   },
   editToggle: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
     alignSelf: "flex-end",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 20,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  editToggleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  avatarWrap: { position: "relative", marginBottom: 6 },
+  editToggleText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  avatarWrap: { position: "relative", marginBottom: 4 },
   avatarRing: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2.5,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarIllustration: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   avatarInitial: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: "center",
     justifyContent: "center",
   },
