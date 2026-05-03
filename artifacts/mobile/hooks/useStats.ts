@@ -30,7 +30,6 @@ async function fetchStats(userId: string): Promise<UserStats> {
     id: string;
     user_id: string;
     lecture_id: string;
-    lecture_name: string;
     score: number;
     total_questions: number;
     correct_answers: number;
@@ -83,17 +82,17 @@ async function fetchStats(userId: string): Promise<UserStats> {
     count: countByDay[i] ?? 0,
   }));
 
-  // ── Subject mastery: avg score per lecture_name ────────────────────────────
+  // ── Subject mastery: avg score grouped by lecture_id ─────────────────────
   const byLecture: Record<string, number[]> = {};
   rows.forEach((r) => {
-    const key = r.lecture_name ?? r.lecture_id ?? "Unknown";
+    const key = r.lecture_id ?? "Unknown";
     if (!byLecture[key]) byLecture[key] = [];
     byLecture[key].push(r.score ?? 0);
   });
 
   const subject_mastery = Object.entries(byLecture)
     .map(([subject, scores]) => ({
-      subject,
+      subject: subject.slice(0, 20), // trim long UUIDs for display
       mastery: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
     }))
     .sort((a, b) => b.mastery - a.mastery)
@@ -104,7 +103,7 @@ async function fetchStats(userId: string): Promise<UserStats> {
     id: r.id,
     user_id: r.user_id,
     lecture_id: r.lecture_id,
-    lecture_name: r.lecture_name ?? r.lecture_id ?? "Unknown",
+    lecture_name: r.lecture_id ?? "Unknown",
     score: r.score ?? 0,
     total_questions: r.total_questions ?? 0,
     correct_answers: r.correct_answers ?? 0,

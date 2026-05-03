@@ -137,55 +137,20 @@ export default function QuizScreen() {
 
       const score = Math.round((correctCount / questions.length) * 100);
 
-      // Probe table columns first by selecting a dummy row
-      const { data: probe } = await supabase
-        .from("quiz_results")
-        .select("*")
-        .limit(1);
-
-      // Build payload using only columns that actually exist in the table
-      const existingCols = new Set<string>(
-        probe && probe.length > 0 ? Object.keys(probe[0]) : []
-      );
-
-      // Full candidate payload
-      const fullPayload: Record<string, unknown> = {
-        user_id: user?.id,
-        lecture_id: lectureId,
-        lecture_name: lectureName,
-        score,
-        total_questions: questions.length,
-        correct_answers: correctCount,
-        completed_at: new Date().toISOString(),
-      };
-
-      // If we probed successfully, filter to only existing columns
-      // Always keep user_id and score — they're almost certainly present
-      const payload =
-        existingCols.size > 0
-          ? Object.fromEntries(
-              Object.entries(fullPayload).filter(([k]) => existingCols.has(k))
-            )
-          : fullPayload;
-
+      // Exact columns confirmed in quiz_results table:
+      // id, user_id, lecture_id, score, total_questions, correct_answers, created_at
       const { error: insertErr } = await supabase
         .from("quiz_results")
-        .insert(payload);
+        .insert({
+          user_id: user?.id,
+          lecture_id: lectureId,
+          score,
+          total_questions: questions.length,
+          correct_answers: correctCount,
+        });
 
       if (insertErr) {
-        // Retry with minimal payload
-        const { error: minErr } = await supabase
-          .from("quiz_results")
-          .insert({
-            user_id: user?.id,
-            score,
-            ...(existingCols.has("lecture_id") || existingCols.size === 0
-              ? { lecture_id: lectureId }
-              : {}),
-          });
-        if (minErr) {
-          setSaveError(`${minErr.message} (${minErr.code})`);
-        }
+        setSaveError(`${insertErr.message} (${insertErr.code})`);
       }
 
       // Invalidate progress + stats regardless of save outcome
