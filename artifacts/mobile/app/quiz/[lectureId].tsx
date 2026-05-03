@@ -125,17 +125,6 @@ function ResultsView({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* ── Header ── */}
-      <View style={{ paddingTop: topPad + 12, paddingHorizontal: 20, paddingBottom: 8 }}>
-        <TouchableOpacity
-          onPress={onHome}
-          style={[rStyles.closeBtn, { backgroundColor: colors.muted }]}
-          activeOpacity={0.7}
-        >
-          <Feather name="x" size={18} color={colors.foreground} />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
         contentContainerStyle={[rStyles.scroll, { paddingBottom: insets.bottom + 48 }]}
         showsVerticalScrollIndicator={false}
