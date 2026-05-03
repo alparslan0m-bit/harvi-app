@@ -13,12 +13,13 @@ import { Lecture } from "@/types";
 interface Props {
   lecture: Lecture;
   index: number;
+  completed?: boolean;
   onPress: () => void;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function LectureCard({ lecture, index, onPress }: Props) {
+export function LectureCard({ lecture, index, completed = false, onPress }: Props) {
   const colors = useColors();
   const scale = useSharedValue(1);
 
@@ -28,15 +29,25 @@ export function LectureCard({ lecture, index, onPress }: Props) {
 
   return (
     <AnimatedTouchable
-      style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }, animStyle]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: completed ? "#f0fdf4" : colors.background,
+          borderColor: completed ? "#bbf7d0" : colors.border,
+        },
+        animStyle,
+      ]}
       onPress={onPress}
       onPressIn={() => { scale.value = withSpring(0.98, { damping: 20 }); }}
       onPressOut={() => { scale.value = withSpring(1, { damping: 20 }); }}
       activeOpacity={1}
     >
-      <View style={[styles.indexBadge, { backgroundColor: colors.muted }]}>
-        <Text style={[styles.indexText, { color: colors.mutedForeground }]}>{index + 1}</Text>
+      <View style={[styles.indexBadge, { backgroundColor: completed ? "#dcfce7" : colors.muted }]}>
+        <Text style={[styles.indexText, { color: completed ? colors.success : colors.mutedForeground }]}>
+          {index + 1}
+        </Text>
       </View>
+
       <View style={styles.textCol}>
         <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
           {lecture.name}
@@ -47,9 +58,16 @@ export function LectureCard({ lecture, index, onPress }: Props) {
           </Text>
         )}
       </View>
-      <View style={[styles.quizIcon, { backgroundColor: colors.primary + "15" }]}>
-        <Feather name="play-circle" size={18} color={colors.primary} />
-      </View>
+
+      {completed ? (
+        <View style={[styles.checkCircle, { backgroundColor: colors.success }]}>
+          <Feather name="check" size={14} color="#fff" />
+        </View>
+      ) : (
+        <View style={[styles.playIcon, { backgroundColor: colors.primary + "15" }]}>
+          <Feather name="play-circle" size={18} color={colors.primary} />
+        </View>
+      )}
     </AnimatedTouchable>
   );
 }
@@ -86,7 +104,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  quizIcon: {
+  checkCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playIcon: {
     width: 34,
     height: 34,
     borderRadius: 10,

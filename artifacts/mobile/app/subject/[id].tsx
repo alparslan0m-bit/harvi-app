@@ -14,12 +14,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LectureCard } from "@/components/LectureCard";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
+import { useProgress } from "@/hooks/useProgress";
 
 export default function SubjectScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: years } = useHierarchy();
+  const completedIds = useProgress();
 
   const subject = years
     ?.flatMap((y) => y.modules)
@@ -29,6 +31,10 @@ export default function SubjectScreen() {
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   if (!subject) return null;
+
+  const completedCount = subject.lectures.filter(
+    (lec) => completedIds.has(lec.external_id) || completedIds.has(lec.id)
+  ).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -49,7 +55,7 @@ export default function SubjectScreen() {
             {subject.name}
           </Text>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            {subject.lectures.length} {subject.lectures.length === 1 ? "lecture" : "lectures"}
+            {completedCount}/{subject.lectures.length} completed
           </Text>
         </View>
       </View>
@@ -60,19 +66,23 @@ export default function SubjectScreen() {
       >
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>LECTURES</Text>
 
-        {subject.lectures.map((lec, i) => (
-          <LectureCard
-            key={lec.id}
-            lecture={lec}
-            index={i}
-            onPress={() =>
-              router.push({
-                pathname: "/quiz/[lectureId]",
-                params: { lectureId: lec.external_id ?? lec.id, lectureName: lec.name },
-              })
-            }
-          />
-        ))}
+        {subject.lectures.map((lec, i) => {
+          const isCompleted = completedIds.has(lec.external_id) || completedIds.has(lec.id);
+          return (
+            <LectureCard
+              key={lec.id}
+              lecture={lec}
+              index={i}
+              completed={isCompleted}
+              onPress={() =>
+                router.push({
+                  pathname: "/quiz/[lectureId]",
+                  params: { lectureId: lec.external_id ?? lec.id, lectureName: lec.name },
+                })
+              }
+            />
+          );
+        })}
 
         {subject.lectures.length === 0 && (
           <View style={styles.empty}>
