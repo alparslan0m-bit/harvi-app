@@ -18,16 +18,17 @@ const ZERO_STATS: UserStats = {
 
 /** Fetch lecture id→name map from the lectures table */
 async function buildLectureNameMap(): Promise<Map<string, string>> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("lectures")
-    .select("id, name, title");
+    .select("id, name");
 
   const map = new Map<string, string>();
-  for (const row of data ?? []) {
+  if (error || !data) return map;
+  for (const row of data) {
     const r = row as Record<string, unknown>;
     const id = String(r.id ?? "");
-    const name = String(r.name ?? r.title ?? "");
-    if (id) map.set(id, name || id.slice(0, 8));
+    const name = String(r.name ?? "");
+    if (id && name) map.set(id, name);
   }
   return map;
 }
