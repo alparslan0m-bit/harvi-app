@@ -871,9 +871,6 @@ export default function QuizScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.muted }]}>
-          <Feather name="x" size={20} color={colors.foreground} />
-        </TouchableOpacity>
         <View style={styles.headerMeta}>
           <Text style={[styles.lectureTitle, { color: colors.foreground }]} numberOfLines={1}>
             {lectureName}
