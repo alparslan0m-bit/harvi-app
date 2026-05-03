@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { useScrollToTop } from "@react-navigation/native";
+import { useFocusEffect, useScrollToTop } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AvatarPicker } from "@/components/AvatarPicker";
 import { AvatarById, AvatarId } from "@/components/DoctorAvatars";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
@@ -37,11 +36,7 @@ export default function ProfileScreen() {
   const [cooldownSecs, setCooldownSecs] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
-  const [pickerVisible, setPickerVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [editMode, setEditMode] = useState(false);
-  const [nameInput, setNameInput] = useState("");
-  const nameInputRef = useRef<TextInput>(null);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -53,35 +48,17 @@ export default function ProfileScreen() {
     ? new Date(user.created_at).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
     : null;
 
-  /* Load saved avatar + name */
-  useEffect(() => {
-    AsyncStorage.multiGet([AVATAR_KEY, NAME_KEY]).then((pairs) => {
-      const av = pairs[0][1];
-      const nm = pairs[1][1];
-      if (av) setAvatarId(av as AvatarId);
-      if (nm) setDisplayName(nm);
-    });
-  }, []);
-
-  const handleSelectAvatar = (id: AvatarId) => {
-    setAvatarId(id);
-    AsyncStorage.setItem(AVATAR_KEY, id);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const openEditMode = () => {
-    setNameInput(displayName);
-    setEditMode(true);
-    setTimeout(() => nameInputRef.current?.focus(), 80);
-  };
-
-  const closeEditMode = () => {
-    const trimmed = nameInput.trim();
-    setDisplayName(trimmed);
-    AsyncStorage.setItem(NAME_KEY, trimmed);
-    setEditMode(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+  /* Reload avatar + name each time the screen is focused (e.g. returning from edit page) */
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.multiGet([AVATAR_KEY, NAME_KEY]).then((pairs) => {
+        const av = pairs[0][1];
+        const nm = pairs[1][1];
+        if (av) setAvatarId(av as AvatarId);
+        setDisplayName(nm ?? "");
+      });
+    }, [])
+  );
 
   const FEEDBACK_MIN = 10;
   const FEEDBACK_MAX = 500;
@@ -187,35 +164,19 @@ export default function ProfileScreen() {
         {/* ── Hero avatar card ─────────────────────────────────────────── */}
         <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-          {/* Edit / Done toggle — top-right corner */}
+          {/* Edit button — top-right */}
           <TouchableOpacity
-            style={[styles.editToggle, {
-              backgroundColor: editMode ? colors.primary : colors.muted,
-            }]}
-            onPress={editMode ? closeEditMode : openEditMode}
+            style={[styles.editToggle, { backgroundColor: colors.muted }]}
+            onPress={() => router.push("/profile/edit")}
             activeOpacity={0.8}
           >
-            <Feather
-              name={editMode ? "check" : "edit-2"}
-              size={13}
-              color={editMode ? "#fff" : colors.mutedForeground}
-            />
-            <Text style={[styles.editToggleText, {
-              color: editMode ? "#fff" : colors.mutedForeground,
-            }]}>
-              {editMode ? "Done" : "Edit"}
-            </Text>
+            <Feather name="edit-2" size={12} color={colors.mutedForeground} />
+            <Text style={[styles.editToggleText, { color: colors.mutedForeground }]}>Edit</Text>
           </TouchableOpacity>
 
-          {/* Avatar */}
-          <TouchableOpacity
-            onPress={editMode ? () => setPickerVisible(true) : undefined}
-            activeOpacity={editMode ? 0.8 : 1}
-            style={styles.avatarWrap}
-          >
-            <View style={[styles.avatarRing, {
-              borderColor: editMode ? colors.primary : colors.primary + "30",
-            }]}>
+          {/* Avatar (view-only) */}
+          <View style={styles.avatarWrap}>
+            <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
               {avatarId ? (
                 <View style={[styles.avatarIllustration, { backgroundColor: "#f0f9ff" }]}>
                   <AvatarById id={avatarId} size={60} />
@@ -226,41 +187,15 @@ export default function ProfileScreen() {
                 </View>
               )}
             </View>
-            {/* Camera badge — only in edit mode */}
-            {editMode && (
-              <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
-                <Feather name="camera" size={10} color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
+          </View>
 
           {/* Name */}
-          {editMode ? (
-            <TextInput
-              ref={nameInputRef}
-              style={[styles.nameInput, {
-                color: colors.foreground,
-                borderColor: colors.primary + "60",
-                backgroundColor: colors.background,
-              }]}
-              value={nameInput}
-              onChangeText={setNameInput}
-              placeholder="Your name"
-              placeholderTextColor={colors.mutedForeground}
-              returnKeyType="done"
-              onSubmitEditing={closeEditMode}
-              maxLength={40}
-              autoCapitalize="words"
-              textAlign="center"
-            />
-          ) : (
-            <Text style={[
-              displayName ? styles.heroName : styles.heroNamePlaceholder,
-              { color: displayName ? colors.foreground : colors.mutedForeground },
-            ]} numberOfLines={1}>
-              {displayName || "Tap Edit to add your name"}
-            </Text>
-          )}
+          <Text style={[
+            displayName ? styles.heroName : styles.heroNamePlaceholder,
+            { color: displayName ? colors.foreground : colors.mutedForeground },
+          ]} numberOfLines={1}>
+            {displayName || "Add your name"}
+          </Text>
 
           {/* Email */}
           <Text style={[styles.heroEmail, { color: colors.mutedForeground }]} numberOfLines={1}>
@@ -275,13 +210,6 @@ export default function ProfileScreen() {
                 Member since {memberSince}
               </Text>
             </View>
-          )}
-
-          {/* Hint shown only in edit mode */}
-          {editMode && (
-            <Text style={[styles.editHint, { color: colors.mutedForeground }]}>
-              Tap avatar to change photo
-            </Text>
           )}
         </View>
 
@@ -413,13 +341,6 @@ export default function ProfileScreen() {
         </Text>
       </ScrollView>
 
-      {/* ── Avatar picker sheet ───────────────────────────────────────── */}
-      <AvatarPicker
-        visible={pickerVisible}
-        current={avatarId}
-        onSelect={handleSelectAvatar}
-        onClose={() => setPickerVisible(false)}
-      />
     </View>
   );
 }
@@ -506,16 +427,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontStyle: "italic",
     marginTop: 2,
-  },
-  nameInput: {
-    width: "100%",
-    borderWidth: 1.5,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    marginTop: 4,
   },
   heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", letterSpacing: -0.1, marginTop: 2 },
   memberPill: {
