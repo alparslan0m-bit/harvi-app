@@ -57,18 +57,56 @@ function parseOptions(raw: unknown): string[] {
   return arr.map(extractOptionText).filter(Boolean);
 }
 
-function resolveAnswerIndex(rawAnswer: unknown, optionCount: number): number {
+/**
+ * Resolves the correct option index (0-based) from whatever the DB stores.
+ *
+ * Handles every common format:
+ *  • 1-based integer  (1, 2, 3, 4)
+ *  • 0-based integer  (0, 1, 2, 3)
+ *  • Letter           ("A", "B", "C", "D")
+ *  • Full option text ("عضلة الحجاب الحاز (Diaphragm)")  ← was broken before
+ *  • Numeric string   ("2", "3")
+ */
+function resolveAnswerIndex(rawAnswer: unknown, options: string[]): number {
+  const n = options.length;
+
   if (typeof rawAnswer === "number") {
-    if (rawAnswer >= 1 && rawAnswer <= optionCount) return rawAnswer - 1;
-    if (rawAnswer >= 0 && rawAnswer < optionCount) return rawAnswer;
+    // 1-based: 1..N → 0..N-1
+    if (rawAnswer >= 1 && rawAnswer <= n) return rawAnswer - 1;
+    // 0-based: 0..N-1
+    if (rawAnswer >= 0 && rawAnswer < n) return rawAnswer;
     return 0;
   }
+
   if (typeof rawAnswer === "string") {
-    const num = parseInt(rawAnswer, 10);
-    if (!isNaN(num)) return resolveAnswerIndex(num, optionCount);
-    const idx = rawAnswer.trim().toUpperCase().charCodeAt(0) - 65;
-    return idx >= 0 && idx < optionCount ? idx : 0;
+    const trimmed = rawAnswer.trim();
+
+    // Numeric string → recurse as number
+    const num = Number(trimmed);
+    if (!isNaN(num) && trimmed !== "") return resolveAnswerIndex(num, options);
+
+    // Single letter A / B / C / D (case-insensitive)
+    if (trimmed.length === 1) {
+      const letterIdx = trimmed.toUpperCase().charCodeAt(0) - 65; // A=0,B=1…
+      if (letterIdx >= 0 && letterIdx < n) return letterIdx;
+    }
+
+    // ── Text matching against actual option strings ─────────────────────
+    const lower = trimmed.toLowerCase();
+
+    // 1. Exact match (case-insensitive, trimmed)
+    const exact = options.findIndex(o => o.trim().toLowerCase() === lower);
+    if (exact !== -1) return exact;
+
+    // 2. Option fully contained in answer string (handles extra punctuation)
+    const contained = options.findIndex(o => lower.includes(o.trim().toLowerCase()) && o.trim().length > 2);
+    if (contained !== -1) return contained;
+
+    // 3. Answer string fully contained in option (short answer stored in DB)
+    const sub = options.findIndex(o => o.trim().toLowerCase().includes(lower) && lower.length > 2);
+    if (sub !== -1) return sub;
   }
+
   return 0;
 }
 
@@ -85,7 +123,7 @@ function buildSecure(row: Record<string, unknown>, options: string[]): string {
       }
       const parsed = JSON.parse(decrypted);
       if (typeof parsed.answer === "number") {
-        const resolved = resolveAnswerIndex(parsed.answer, options.length);
+        const resolved = resolveAnswerIndex(parsed.answer, options);
         return safeBtoa(JSON.stringify({ answer: resolved, explanation: parsed.explanation ?? "" }));
       }
     } catch { /* fall through */ }
@@ -93,7 +131,7 @@ function buildSecure(row: Record<string, unknown>, options: string[]): string {
     try {
       const parsed = JSON.parse(rawSecure);
       if (typeof parsed.answer === "number") {
-        const resolved = resolveAnswerIndex(parsed.answer, options.length);
+        const resolved = resolveAnswerIndex(parsed.answer, options);
         return safeBtoa(JSON.stringify({ answer: resolved, explanation: parsed.explanation ?? "" }));
       }
     } catch { /* fall through */ }
@@ -101,7 +139,7 @@ function buildSecure(row: Record<string, unknown>, options: string[]): string {
 
   const rawAnswer = pick(row, ANSWER_CANDIDATES);
   const explanation = str(pick(row, EXPLANATION_CANDIDATES) ?? "");
-  const answerIndex = resolveAnswerIndex(rawAnswer, options.length);
+  const answerIndex = resolveAnswerIndex(rawAnswer, options);
   return safeBtoa(JSON.stringify({ answer: answerIndex, explanation }));
 }
 
