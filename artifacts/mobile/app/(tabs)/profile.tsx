@@ -33,6 +33,7 @@ export default function ProfileScreen() {
   const [feedbackText, setFeedbackText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -89,6 +90,7 @@ export default function ProfileScreen() {
     if (!feedbackText.trim()) return;
     setSubmitting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFeedbackError(null);
     const { error } = await supabase.from("feedback").insert({
       user_id: user?.id,
       message: feedbackText.trim(),
@@ -97,8 +99,12 @@ export default function ProfileScreen() {
     if (!error) {
       setFeedbackText("");
       setFeedbackSent(true);
+      setFeedbackError(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setFeedbackSent(false), 3000);
+    } else {
+      setFeedbackError(error.message);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -278,6 +284,15 @@ export default function ProfileScreen() {
               <Feather name="check-circle" size={14} color="#059669" />
               <Text style={[styles.successText, { color: "#059669" }]}>
                 Feedback sent — thank you!
+              </Text>
+            </View>
+          )}
+
+          {feedbackError && (
+            <View style={[styles.successBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
+              <Feather name="alert-circle" size={14} color="#dc2626" />
+              <Text style={[styles.successText, { color: "#dc2626", flex: 1 }]} numberOfLines={3}>
+                {feedbackError}
               </Text>
             </View>
           )}
