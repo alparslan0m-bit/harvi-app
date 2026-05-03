@@ -71,8 +71,6 @@ function DoctorAvatar({ id, size = 80 }: { id: string; size: number }) {
       hairColor: cfg.hairColor,
       clothing: ["blazerShirt"],
       clothesColor: ["ffffff"],
-      facialHair: [""],
-      accessories: [""],
       eyes: ["default"],
       eyebrows: ["defaultNatural"],
       mouth: ["smile"],
