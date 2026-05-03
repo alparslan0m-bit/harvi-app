@@ -13,14 +13,19 @@ import { Subject } from "@/types";
 interface Props {
   subject: Subject;
   index: number;
+  completedCount: number;
   onPress: () => void;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export function SubjectCard({ subject, index, onPress }: Props) {
+export function SubjectCard({ subject, index, completedCount, onPress }: Props) {
   const scale = useSharedValue(1);
   const gradient = colors.yearGradients[index % colors.yearGradients.length] as [string, string];
+
+  const total = subject.lectures.length;
+  const progress = total > 0 ? completedCount / total : 0;
+  const allDone = completedCount >= total && total > 0;
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -40,9 +45,26 @@ export function SubjectCard({ subject, index, onPress }: Props) {
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>{subject.name}</Text>
+        {/* Title row */}
+        <View style={styles.row}>
+          <Text style={styles.title} numberOfLines={2}>{subject.name}</Text>
+          {/* Completion badge */}
+          <View style={[styles.badge, allDone && styles.badgeDone]}>
+            {allDone
+              ? <Text style={styles.badgeText}>✓</Text>
+              : <Text style={styles.badgeText}>{completedCount}/{total}</Text>
+            }
+          </View>
         </View>
+
+        {/* Progress bar */}
+        {total > 0 && (
+          <View style={styles.barTrack}>
+            <View style={[styles.barFill, { width: `${Math.round(progress * 100)}%` as `${number}%` }]} />
+          </View>
+        )}
+
+        {/* Decorative circles */}
         <View style={styles.decorCircle} />
         <View style={styles.decorCircle2} />
       </LinearGradient>
@@ -64,34 +86,54 @@ const styles = StyleSheet.create({
   },
   gradient: {
     padding: 20,
+    paddingBottom: 16,
     minHeight: 90,
     overflow: "hidden",
     position: "relative",
   },
-  content: { zIndex: 2 },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
+    zIndex: 2,
+  },
+  title: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.5,
+  },
   badge: {
-    alignSelf: "flex-start",
     backgroundColor: "rgba(255,255,255,0.25)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 100,
-    marginBottom: 10,
+    alignSelf: "flex-start",
+  },
+  badgeDone: {
+    backgroundColor: "rgba(255,255,255,0.45)",
   },
   badgeText: {
     color: "#fff",
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.5,
-  },
-  title: {
-    color: "#fff",
-    fontSize: 22,
+    fontSize: 12,
     fontFamily: "Inter_700Bold",
-    letterSpacing: -0.5,
-    marginBottom: 8,
+    letterSpacing: 0.2,
   },
-  meta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  barTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    overflow: "hidden",
+    zIndex: 2,
+  },
+  barFill: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.9)",
+  },
   decorCircle: {
     position: "absolute",
     width: 120,

@@ -14,12 +14,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubjectCard } from "@/components/SubjectCard";
 import { useColors } from "@/hooks/useColors";
 import { useHierarchy } from "@/hooks/useHierarchy";
+import { useProgress } from "@/hooks/useProgress";
 
 export default function ModuleScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: years } = useHierarchy();
+  const completedIds = useProgress();
 
   const module = years?.flatMap((y) => y.modules).find((m) => m.id === id);
 
@@ -69,16 +71,23 @@ export default function ModuleScreen() {
       >
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>SUBJECTS</Text>
 
-        {module.subjects.map((sub, i) => (
-          <SubjectCard
-            key={sub.id}
-            subject={sub}
-            index={i}
-            onPress={() =>
-              router.push({ pathname: "/subject/[id]", params: { id: sub.id } })
-            }
-          />
-        ))}
+        {module.subjects.map((sub, i) => {
+          const completedCount = sub.lectures.filter(
+            (lec) => completedIds.has(lec.external_id) || completedIds.has(lec.id)
+          ).length;
+
+          return (
+            <SubjectCard
+              key={sub.id}
+              subject={sub}
+              index={i}
+              completedCount={completedCount}
+              onPress={() =>
+                router.push({ pathname: "/subject/[id]", params: { id: sub.id } })
+              }
+            />
+          );
+        })}
 
         {module.subjects.length === 0 && (
           <View style={styles.empty}>
