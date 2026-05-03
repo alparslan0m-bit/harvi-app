@@ -103,6 +103,7 @@ export default function QuizScreen() {
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -132,16 +133,62 @@ export default function QuizScreen() {
     if (isLast) {
       setFinished(true);
       setSubmitting(true);
+      setSaveError(null);
+
       const score = Math.round((correctCount / questions.length) * 100);
-      await supabase.from("quiz_results").insert({
+
+      // Probe table columns first by selecting a dummy row
+      const { data: probe } = await supabase
+        .from("quiz_results")
+        .select("*")
+        .limit(1);
+
+      // Build payload using only columns that actually exist in the table
+      const existingCols = new Set<string>(
+        probe && probe.length > 0 ? Object.keys(probe[0]) : []
+      );
+
+      // Full candidate payload
+      const fullPayload: Record<string, unknown> = {
         user_id: user?.id,
         lecture_id: lectureId,
         lecture_name: lectureName,
         score,
         total_questions: questions.length,
         correct_answers: correctCount,
-      });
-      // Invalidate progress + stats so subject screen shows correct completion state
+        completed_at: new Date().toISOString(),
+      };
+
+      // If we probed successfully, filter to only existing columns
+      // Always keep user_id and score — they're almost certainly present
+      const payload =
+        existingCols.size > 0
+          ? Object.fromEntries(
+              Object.entries(fullPayload).filter(([k]) => existingCols.has(k))
+            )
+          : fullPayload;
+
+      const { error: insertErr } = await supabase
+        .from("quiz_results")
+        .insert(payload);
+
+      if (insertErr) {
+        // Retry with minimal payload
+        const { error: minErr } = await supabase
+          .from("quiz_results")
+          .insert({
+            user_id: user?.id,
+            score,
+            ...(existingCols.has("lecture_id") || existingCols.size === 0
+              ? { lecture_id: lectureId }
+              : {}),
+          });
+        if (minErr) {
+          setSaveError(`${minErr.message} (${minErr.code})`);
+        }
+      }
+
+      // Invalidate progress + stats regardless of save outcome
       queryClient.invalidateQueries({ queryKey: ["progress"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       setSubmitting(false);
@@ -149,7 +196,7 @@ export default function QuizScreen() {
       setCurrentIndex((i) => i + 1);
       setAnswered(null);
     }
-  }, [questions, currentIndex, correctCount, answered, user, lectureId, lectureName]);
+  }, [questions, currentIndex, correctCount, user, lectureId, lectureName, queryClient]);
 
   const handleRetry = useCallback(() => {
     setCurrentIndex(0);
@@ -157,6 +204,7 @@ export default function QuizScreen() {
     setCorrectCount(0);
     setFinished(false);
     setSubmitting(false);
+    setSaveError(null);
     setReviewing(false);
     setHistory([]);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -316,6 +364,12 @@ export default function QuizScreen() {
           {submitting && (
             <Text style={[styles.savingText, { color: colors.mutedForeground }]}>Saving results...</Text>
           )}
+          {saveError && (
+            <View style={[styles.saveErrorBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
+              <Feather name="alert-triangle" size={14} color="#dc2626" />
+              <Text style={styles.saveErrorText} selectable>Save failed: {saveError}</Text>
+            </View>
+          )}
 
           {/* Action buttons */}
           <View style={styles.resultBtns}>
@@ -448,6 +502,8 @@ const styles = StyleSheet.create({
   resultScore: { fontSize: 64, fontFamily: "Inter_700Bold", letterSpacing: -2, marginTop: 8 },
   resultBreakdown: { fontSize: 15, fontFamily: "Inter_400Regular", marginTop: 4, marginBottom: 8 },
   savingText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  saveErrorBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, marginTop: 12, width: "100%" },
+  saveErrorText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#dc2626", lineHeight: 18 },
   resultBtns: { width: "100%", gap: 12, marginTop: 32 },
   actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", paddingVertical: 15, borderRadius: 16 },
   actionBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
