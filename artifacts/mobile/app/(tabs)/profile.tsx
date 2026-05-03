@@ -34,6 +34,8 @@ export default function ProfileScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [cooldownSecs, setCooldownSecs] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -86,20 +88,60 @@ export default function ProfileScreen() {
     setNameInput(displayName);
   };
 
+  const FEEDBACK_MIN = 10;
+  const FEEDBACK_MAX = 500;
+  const COOLDOWN_SECS = 60;
+
+  /* Sanitize: strip null bytes, leading/trailing whitespace, collapse runs of whitespace */
+  const sanitize = (text: string) =>
+    text.replace(/\0/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
+
+  const startCooldown = () => {
+    setCooldownSecs(COOLDOWN_SECS);
+    cooldownRef.current = setInterval(() => {
+      setCooldownSecs((s) => {
+        if (s <= 1) {
+          clearInterval(cooldownRef.current!);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  };
+
   const handleSubmitFeedback = async () => {
-    if (!feedbackText.trim()) return;
+    const clean = sanitize(feedbackText);
+
+    /* Client-side guards */
+    if (clean.length < FEEDBACK_MIN) {
+      setFeedbackError(`Please write at least ${FEEDBACK_MIN} characters.`);
+      return;
+    }
+    if (clean.length > FEEDBACK_MAX) {
+      setFeedbackError(`Feedback must be under ${FEEDBACK_MAX} characters.`);
+      return;
+    }
+    if (cooldownSecs > 0) return;
+    if (!user?.id) {
+      setFeedbackError("You must be signed in to submit feedback.");
+      return;
+    }
+
     setSubmitting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setFeedbackError(null);
+
     const { error } = await supabase.from("feedback").insert({
-      user_id: user?.id,
-      content: feedbackText.trim(),
+      user_id: user.id,
+      content: clean,
     });
+
     setSubmitting(false);
     if (!error) {
       setFeedbackText("");
       setFeedbackSent(true);
       setFeedbackError(null);
+      startCooldown();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setFeedbackSent(false), 3000);
     } else {
@@ -267,17 +309,33 @@ export default function ProfileScreen() {
           <TextInput
             style={[styles.textarea, {
               color: colors.foreground,
-              borderColor: colors.border,
+              borderColor: feedbackError ? "#fca5a5" : colors.border,
               backgroundColor: colors.background,
             }]}
-            placeholder="Share your thoughts, report a bug, or suggest a feature..."
+            placeholder="Share your thoughts, report a bug, or suggest a feature…"
             placeholderTextColor={colors.mutedForeground}
             multiline
             numberOfLines={4}
             value={feedbackText}
-            onChangeText={setFeedbackText}
+            onChangeText={(t) => {
+              setFeedbackText(t.slice(0, 500));
+              if (feedbackError) setFeedbackError(null);
+            }}
             textAlignVertical="top"
+            maxLength={500}
+            editable={cooldownSecs === 0 && !submitting}
           />
+
+          {/* Character counter */}
+          <Text style={[styles.charCount, {
+            color: feedbackText.length >= 480
+              ? "#dc2626"
+              : feedbackText.length >= 400
+              ? "#d97706"
+              : colors.mutedForeground,
+          }]}>
+            {feedbackText.length} / 500
+          </Text>
 
           {feedbackSent && (
             <View style={[styles.successBox, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
@@ -300,17 +358,29 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[
               styles.submitBtn,
-              { backgroundColor: feedbackText.trim() ? colors.primary : colors.muted },
+              {
+                backgroundColor:
+                  submitting || cooldownSecs > 0 || feedbackText.trim().length < 10
+                    ? colors.muted
+                    : colors.primary,
+              },
             ]}
             onPress={handleSubmitFeedback}
-            disabled={submitting || !feedbackText.trim()}
+            disabled={submitting || cooldownSecs > 0 || feedbackText.trim().length < 10}
             activeOpacity={0.8}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
+            ) : cooldownSecs > 0 ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Feather name="clock" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.submitBtnText, { color: colors.mutedForeground }]}>
+                  Wait {cooldownSecs}s
+                </Text>
+              </View>
             ) : (
               <Text style={[styles.submitBtnText, {
-                color: feedbackText.trim() ? "#fff" : colors.mutedForeground,
+                color: feedbackText.trim().length < 10 ? colors.mutedForeground : "#fff",
               }]}>
                 Submit Feedback
               </Text>
@@ -511,6 +581,13 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     minHeight: 96,
     lineHeight: 22,
+  },
+  charCount: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    textAlign: "right",
+    marginTop: 4,
+    marginBottom: 2,
   },
   successBox: {
     flexDirection: "row",
