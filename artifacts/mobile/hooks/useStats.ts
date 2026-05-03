@@ -16,17 +16,37 @@ const ZERO_STATS: UserStats = {
   recent_results: [],
 };
 
+/** Fetch lecture id→name map from the lectures table */
+async function buildLectureNameMap(): Promise<Map<string, string>> {
+  const { data } = await supabase
+    .from("lectures")
+    .select("id, name, title");
+
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    const r = row as Record<string, unknown>;
+    const id = String(r.id ?? "");
+    const name = String(r.name ?? r.title ?? "");
+    if (id) map.set(id, name || id.slice(0, 8));
+  }
+  return map;
+}
+
 async function fetchStats(userId: string): Promise<UserStats> {
-  const { data, error } = await supabase
-    .from("quiz_results")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  // Fetch quiz results + lecture names in parallel
+  const [quizRes, lectureMap] = await Promise.all([
+    supabase
+      .from("quiz_results")
+      .select("id, user_id, lecture_id, score, total_questions, correct_answers, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    buildLectureNameMap(),
+  ]);
 
-  if (error) throw error;
-  if (!data || data.length === 0) return ZERO_STATS;
+  if (quizRes.error) throw quizRes.error;
+  if (!quizRes.data || quizRes.data.length === 0) return ZERO_STATS;
 
-  const rows = data as Array<{
+  const rows = quizRes.data as Array<{
     id: string;
     user_id: string;
     lecture_id: string;
@@ -35,6 +55,10 @@ async function fetchStats(userId: string): Promise<UserStats> {
     correct_answers: number;
     created_at: string;
   }>;
+
+  /** Resolve a lecture UUID to a human-readable name */
+  const lectureName = (id: string) =>
+    lectureMap.get(id) ?? `Lecture ${id.slice(0, 6)}…`;
 
   // ── Key metrics ────────────────────────────────────────────────────────────
   const total_quizzes = rows.length;
@@ -82,7 +106,7 @@ async function fetchStats(userId: string): Promise<UserStats> {
     count: countByDay[i] ?? 0,
   }));
 
-  // ── Subject mastery: avg score grouped by lecture_id ─────────────────────
+  // ── Subject mastery: avg score per lecture, shown with real name ──────────
   const byLecture: Record<string, number[]> = {};
   rows.forEach((r) => {
     const key = r.lecture_id ?? "Unknown";
@@ -91,19 +115,19 @@ async function fetchStats(userId: string): Promise<UserStats> {
   });
 
   const subject_mastery = Object.entries(byLecture)
-    .map(([subject, scores]) => ({
-      subject: subject.slice(0, 20), // trim long UUIDs for display
+    .map(([id, scores]) => ({
+      subject: lectureName(id),
       mastery: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
     }))
     .sort((a, b) => b.mastery - a.mastery)
     .slice(0, 6);
 
-  // ── Recent results ─────────────────────────────────────────────────────────
+  // ── Recent results with real lecture names ────────────────────────────────
   const recent_results = rows.slice(0, 10).map((r) => ({
     id: r.id,
     user_id: r.user_id,
     lecture_id: r.lecture_id,
-    lecture_name: r.lecture_id ?? "Unknown",
+    lecture_name: lectureName(r.lecture_id),
     score: r.score ?? 0,
     total_questions: r.total_questions ?? 0,
     correct_answers: r.correct_answers ?? 0,
