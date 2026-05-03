@@ -1,7 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/lib/supabase";
 import { Lecture, Module, Subject, Year } from "@/types";
+
+const HIERARCHY_CACHE_KEY = "harvi:hierarchy";
 
 const YEAR_FK_CANDIDATES = ["year_id", "course_id", "level_id", "stage_id", "parent_id"];
 const MODULE_FK_CANDIDATES = ["module_id", "subject_group_id", "section_id", "category_id", "parent_id", "unit_id"];
@@ -18,7 +21,24 @@ function detectFK(row: Record<string, unknown>, candidates: string[]): string {
 function str(v: unknown): string { return String(v ?? ""); }
 function num(v: unknown): number { return Number(v ?? 0); }
 
-async function fetchHierarchy(): Promise<Year[]> {
+async function readCachedHierarchy(): Promise<Year[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(HIERARCHY_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Year[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedHierarchy(data: Year[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HIERARCHY_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // best-effort
+  }
+}
+
+async function buildHierarchyFromRemote(): Promise<Year[]> {
   const [
     { data: years, error: yearsErr },
     { data: modules, error: modulesErr },
@@ -44,7 +64,6 @@ async function fetchHierarchy(): Promise<Year[]> {
   const moduleFk = firstSubject ? detectFK(firstSubject, MODULE_FK_CANDIDATES) : "module_id";
   const subjectFk = firstLecture ? detectFK(firstLecture, SUBJECT_FK_CANDIDATES) : "subject_id";
 
-  // Build lectures by subject
   const lecturesBySubject: Record<string, Lecture[]> = {};
   for (const lec of (lectures ?? [])) {
     const r = lec as Record<string, unknown>;
@@ -59,7 +78,6 @@ async function fetchHierarchy(): Promise<Year[]> {
     });
   }
 
-  // Build subjects by module
   const subjectsByModule: Record<string, Subject[]> = {};
   for (const sub of (subjects ?? [])) {
     const r = sub as Record<string, unknown>;
@@ -74,7 +92,6 @@ async function fetchHierarchy(): Promise<Year[]> {
     });
   }
 
-  // Build modules by year
   const modulesByYear: Record<string, Module[]> = {};
   for (const mod of (modules ?? [])) {
     const r = mod as Record<string, unknown>;
@@ -104,11 +121,27 @@ async function fetchHierarchy(): Promise<Year[]> {
   });
 }
 
+async function fetchHierarchy(): Promise<Year[]> {
+  try {
+    const data = await buildHierarchyFromRemote();
+    // Persist fresh data for offline use
+    writeCachedHierarchy(data);
+    return data;
+  } catch (err) {
+    // Network unavailable — serve stale cache rather than an error screen
+    const cached = await readCachedHierarchy();
+    if (cached) return cached;
+    throw err;
+  }
+}
+
 export function useHierarchy() {
   return useQuery({
     queryKey: ["hierarchy"],
     queryFn: fetchHierarchy,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 10,       // consider fresh for 10 min
+    gcTime: 1000 * 60 * 60 * 24,     // keep in memory 24 h
+    networkMode: "offlineFirst",      // attempt even without network
     retry: 1,
   });
 }

@@ -7,7 +7,9 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { useColors } from "@/hooks/useColors";
+import { useSyncStatus } from "@/context/SyncContext";
 
 function NativeTabLayout() {
   return (
@@ -106,8 +108,16 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  const { isOnline, isSyncing, pendingCount } = useSyncStatus();
+
+  return (
+    <View style={{ flex: 1 }}>
+      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+      <OfflineBanner
+        isOnline={isOnline}
+        pendingCount={pendingCount}
+        isSyncing={isSyncing}
+      />
+    </View>
+  );
 }

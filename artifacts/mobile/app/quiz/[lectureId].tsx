@@ -22,9 +22,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/context/AuthContext";
+import { useSyncStatus } from "@/context/SyncContext";
 import { useColors } from "@/hooks/useColors";
 import { useQuizQuestions } from "@/hooks/useQuiz";
 import { decryptAnswer } from "@/lib/crypto";
+import { enqueueQuizResult } from "@/lib/offlineQueue";
 import { supabase } from "@/lib/supabase";
 import { Question } from "@/types";
 
@@ -98,12 +100,15 @@ export default function QuizScreen() {
   const { user } = useAuth();
   const { data: questions, isLoading, error } = useQuizQuestions(lectureId);
 
+  const { isOnline } = useSyncStatus();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answered, setAnswered] = useState<AnsweredState | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
@@ -134,23 +139,46 @@ export default function QuizScreen() {
       setFinished(true);
       setSubmitting(true);
       setSaveError(null);
+      setSavedOffline(false);
 
       const score = Math.round((correctCount / questions.length) * 100);
+      const now = new Date().toISOString();
 
-      // Exact columns confirmed in quiz_results table:
-      // id, user_id, lecture_id, score, total_questions, correct_answers, created_at
-      const { error: insertErr } = await supabase
-        .from("quiz_results")
-        .insert({
-          user_id: user?.id,
-          lecture_id: lectureId,
+      if (!isOnline) {
+        // Queue result for later sync
+        await enqueueQuizResult({
+          userId: user?.id ?? "",
+          lectureId: lectureId ?? "",
           score,
-          total_questions: questions.length,
-          correct_answers: correctCount,
+          totalQuestions: questions.length,
+          correctAnswers: correctCount,
+          createdAt: now,
         });
+        setSavedOffline(true);
+      } else {
+        const { error: insertErr } = await supabase
+          .from("quiz_results")
+          .insert({
+            user_id: user?.id,
+            lecture_id: lectureId,
+            score,
+            total_questions: questions.length,
+            correct_answers: correctCount,
+            created_at: now,
+          });
 
-      if (insertErr) {
-        setSaveError(`${insertErr.message} (${insertErr.code})`);
+        if (insertErr) {
+          // Network error mid-request — fall back to queue
+          await enqueueQuizResult({
+            userId: user?.id ?? "",
+            lectureId: lectureId ?? "",
+            score,
+            totalQuestions: questions.length,
+            correctAnswers: correctCount,
+            createdAt: now,
+          });
+          setSavedOffline(true);
+        }
       }
 
       // Invalidate progress + stats regardless of save outcome
@@ -170,6 +198,7 @@ export default function QuizScreen() {
     setFinished(false);
     setSubmitting(false);
     setSaveError(null);
+    setSavedOffline(false);
     setReviewing(false);
     setHistory([]);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -329,7 +358,15 @@ export default function QuizScreen() {
           {submitting && (
             <Text style={[styles.savingText, { color: colors.mutedForeground }]}>Saving results...</Text>
           )}
-          {saveError && (
+          {savedOffline && !submitting && (
+            <View style={[styles.saveErrorBox, { backgroundColor: "#fef9c3", borderColor: "#fde047" }]}>
+              <Feather name="wifi-off" size={14} color="#92400e" />
+              <Text style={[styles.saveErrorText, { color: "#92400e" }]}>
+                Saved locally — will sync when you're back online.
+              </Text>
+            </View>
+          )}
+          {saveError && !savedOffline && (
             <View style={[styles.saveErrorBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
               <Feather name="alert-triangle" size={14} color="#dc2626" />
               <Text style={styles.saveErrorText} selectable>Save failed: {saveError}</Text>

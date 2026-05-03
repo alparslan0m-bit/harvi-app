@@ -58,6 +58,7 @@
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
+    "@react-native-community/netinfo": "^11.4.1",
     "@supabase/supabase-js": "^2.105.1",
     "react-native-url-polyfill": "^3.0.0"
   }
