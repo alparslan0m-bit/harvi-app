@@ -1,8 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useScrollToTop } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,9 +17,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AvatarPicker } from "@/components/AvatarPicker";
+import { AvatarById, AvatarId } from "@/components/DoctorAvatars";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { supabase } from "@/lib/supabase";
+
+const AVATAR_KEY = "harvi:avatar";
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -27,6 +32,8 @@ export default function ProfileScreen() {
   const [feedbackText, setFeedbackText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -37,6 +44,19 @@ export default function ProfileScreen() {
   const memberSince = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
     : null;
+
+  /* Load saved avatar */
+  useEffect(() => {
+    AsyncStorage.getItem(AVATAR_KEY).then((val) => {
+      if (val) setAvatarId(val as AvatarId);
+    });
+  }, []);
+
+  const handleSelectAvatar = (id: AvatarId) => {
+    setAvatarId(id);
+    AsyncStorage.setItem(AVATAR_KEY, id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const handleSubmitFeedback = async () => {
     if (!feedbackText.trim()) return;
@@ -99,14 +119,36 @@ export default function ProfileScreen() {
 
         {/* ── Hero avatar card ─────────────────────────────────────────── */}
         <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {/* Avatar ring */}
-          <View style={[styles.avatarRing, { borderColor: colors.primary + "33" }]}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={styles.avatarText}>{initial}</Text>
-            </View>
-          </View>
 
-          {/* Name / email */}
+          {/* Tappable avatar */}
+          <TouchableOpacity
+            onPress={() => setPickerVisible(true)}
+            activeOpacity={0.85}
+            style={styles.avatarWrap}
+          >
+            {avatarId ? (
+              /* Doctor illustration */
+              <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
+                <View style={[styles.avatarIllustration, { backgroundColor: "#f0f9ff" }]}>
+                  <AvatarById id={avatarId} size={76} />
+                </View>
+              </View>
+            ) : (
+              /* Fallback initial */
+              <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
+                <View style={[styles.avatarInitial, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.avatarInitialText}>{initial}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Edit badge */}
+            <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
+              <Feather name="edit-2" size={10} color="#fff" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Email */}
           <Text style={[styles.heroEmail, { color: colors.foreground }]} numberOfLines={1}>
             {user?.email}
           </Text>
@@ -120,6 +162,13 @@ export default function ProfileScreen() {
               </Text>
             </View>
           )}
+
+          {/* Change avatar hint */}
+          <TouchableOpacity onPress={() => setPickerVisible(true)} activeOpacity={0.7}>
+            <Text style={[styles.changeAvatarHint, { color: colors.mutedForeground }]}>
+              Tap avatar to change
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Feedback ────────────────────────────────────────────────── */}
@@ -208,12 +257,18 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* App version */}
         <Text style={[styles.versionText, { color: colors.mutedForeground }]}>
           Harvi · v1.0.0
         </Text>
-
       </ScrollView>
+
+      {/* ── Avatar picker sheet ───────────────────────────────────────── */}
+      <AvatarPicker
+        visible={pickerVisible}
+        current={avatarId}
+        onSelect={handleSelectAvatar}
+        onClose={() => setPickerVisible(false)}
+      />
     </View>
   );
 }
@@ -236,28 +291,47 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     alignItems: "center",
-    paddingVertical: 32,
+    paddingVertical: 28,
     paddingHorizontal: 24,
     marginBottom: 28,
-    gap: 10,
+    gap: 8,
   },
+  avatarWrap: { position: "relative", marginBottom: 4 },
   avatarRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
   },
-  avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+  avatarIllustration: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarInitial: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 32, fontFamily: "Inter_700Bold", color: "#fff" },
+  avatarInitialText: { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff" },
+  editBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   heroEmail: { fontSize: 15, fontFamily: "Inter_600SemiBold", letterSpacing: -0.2 },
   memberPill: {
     flexDirection: "row",
@@ -269,6 +343,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   memberPillText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  changeAvatarHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 
   /* Section label */
   sectionLabel: {
@@ -293,7 +368,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  /* Textarea */
   textarea: {
     borderWidth: 1,
     borderRadius: 14,
