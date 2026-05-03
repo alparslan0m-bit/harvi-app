@@ -40,6 +40,24 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
+/** Returns true if the URL looks like a direct image file rather than a webpage. */
+function looksLikeImageUrl(uri: string): boolean {
+  try {
+    const url = new URL(uri);
+    const path = url.pathname.toLowerCase();
+    // Explicit image extensions
+    if (/\.(jpe?g|png|webp|gif|svg|avif|heic|bmp|tiff?)(\?|$)/.test(path)) return true;
+    // Supabase Storage paths don't end with image extensions but ARE images
+    if (path.includes("/storage/v1/")) return true;
+    // Anything ending in .html / .htm / .php / .asp is definitely not an image
+    if (/\.(html?|php|asp|aspx|jsp|cgi|htm)(\?|$)/.test(path)) return false;
+    // No extension — could be an image CDN URL, give it the benefit of the doubt
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Resolves the correct ImageSource for expo-image, injecting auth headers
  *  when the URL belongs to this project's Supabase instance. */
 async function resolveSource(uri: string): Promise<ImageSource> {
@@ -86,6 +104,20 @@ export function QuizImage({ uri, caption }: Props) {
     setError(false);
     setLoaded(false);
     setSource(null);
+
+    // Catch URLs that are webpages, not images (e.g. .html links stored by mistake)
+    if (!looksLikeImageUrl(uri)) {
+      if (__DEV__) {
+        console.warn(
+          "[QuizImage] URL does not look like an image file — " +
+          "store a direct .jpg/.png/.webp URL or a Supabase Storage URL.\n" +
+          "Got:", uri
+        );
+      }
+      setError(true);
+      setLoaded(true);
+      return;
+    }
 
     resolveSource(uri).then(setSource).catch(() => {
       setSource({ uri });
