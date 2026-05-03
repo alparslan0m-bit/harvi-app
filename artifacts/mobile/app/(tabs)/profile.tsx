@@ -81,7 +81,7 @@ export default function ProfileScreen() {
       {/* ── Fixed header ──────────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+        <Text style={[styles.subtitle, { color: colors.primary }]} numberOfLines={1}>
           Account & settings
         </Text>
       </View>
