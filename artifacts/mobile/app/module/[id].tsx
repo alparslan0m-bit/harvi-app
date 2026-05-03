@@ -43,26 +43,12 @@ export default function ModuleScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.muted }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={18} color={colors.foreground} />
+          <Text style={[styles.backLabel, { color: colors.foreground }]}>Back</Text>
         </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {module.name}
-          </Text>
-          <View style={styles.headerMeta}>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-              {module.subjects.length} subjects
-            </Text>
-            {totalLectures > 0 && (
-              <>
-                <Text style={[styles.dot, { color: colors.mutedForeground }]}>·</Text>
-                <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-                  {totalLectures} lectures
-                </Text>
-              </>
-            )}
-          </View>
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {module.name}
+        </Text>
       </View>
 
       <ScrollView
@@ -102,19 +88,23 @@ export default function ModuleScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
+    flexDirection: "column",
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
   },
-  backBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  headerText: { flex: 1 },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
-  headerMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 1 },
-  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  dot: { fontSize: 13 },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  backLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  headerTitle: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
   list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,

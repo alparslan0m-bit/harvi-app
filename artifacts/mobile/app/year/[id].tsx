@@ -31,21 +31,19 @@ export default function YearScreen() {
       <View
         style={[
           styles.header,
-          { paddingTop: topPad + 12, backgroundColor: colors.background, borderBottomColor: colors.border },
+          { paddingTop: topPad + 10, backgroundColor: colors.background, borderBottomColor: colors.border },
         ]}
       >
         <TouchableOpacity
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.muted }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={18} color={colors.foreground} />
+          <Text style={[styles.backLabel, { color: colors.foreground }]}>Back</Text>
         </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>{year.name}</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            {year.modules.length} {year.modules.length === 1 ? "module" : "modules"}
-          </Text>
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {year.name}
+        </Text>
       </View>
 
       <ScrollView
@@ -78,17 +76,23 @@ export default function YearScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
+    flexDirection: "column",
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
   },
-  backBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  headerText: { flex: 1 },
-  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.6 },
-  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 1 },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  backLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  headerTitle: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
   list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,

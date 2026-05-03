@@ -48,16 +48,12 @@ export default function SubjectScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.muted }]}
         >
-          <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <Feather name="arrow-left" size={18} color={colors.foreground} />
+          <Text style={[styles.backLabel, { color: colors.foreground }]}>Back</Text>
         </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
-            {subject.name}
-          </Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            {completedCount}/{subject.lectures.length} completed
-          </Text>
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {subject.name}
+        </Text>
       </View>
 
       <ScrollView
@@ -97,17 +93,23 @@ export default function SubjectScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
+    flexDirection: "column",
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
   },
-  backBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  headerText: { flex: 1 },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5, lineHeight: 26 },
-  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  backLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  headerTitle: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8, lineHeight: 36 },
   list: { paddingTop: 24 },
   sectionLabel: {
     fontSize: 11,
