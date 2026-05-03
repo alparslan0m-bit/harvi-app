@@ -48,7 +48,6 @@ export default function StatsScreen() {
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
-          <Text style={[styles.subtitle, { color: colors.primary }]}>{today}</Text>
         </View>
         {stats && stats.streak > 0 && (
           <View style={[styles.streakBadge, { backgroundColor: "#fffbeb" }]}>

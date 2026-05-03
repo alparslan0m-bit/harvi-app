@@ -180,9 +180,6 @@ export default function ProfileScreen() {
       {/* ── Fixed header ──────────────────────────────────────────────── */}
       <View style={[styles.header, { paddingTop: topPad + 14, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
-        <Text style={[styles.subtitle, { color: colors.primary }]}>
-          Account & settings
-        </Text>
       </View>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
