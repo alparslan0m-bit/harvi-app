@@ -85,9 +85,6 @@ export default function ProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerSection}>
-        <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-          Signed in as
-        </Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Profile</Text>
       </View>
 
@@ -202,8 +199,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   content: {},
   headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  greeting: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 4 },
-  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -1 },
+  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
   userCard: {
     marginHorizontal: 20,
     marginBottom: 16,

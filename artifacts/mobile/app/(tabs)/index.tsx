@@ -125,8 +125,7 @@ export default function LearnScreen() {
       }
     >
       <View style={styles.headerSection}>
-        <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Ready to study?</Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>Your Curriculum</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Curriculum</Text>
       </View>
 
       {years?.map((year, i) => (
@@ -161,8 +160,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   content: {},
   headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  greeting: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 4 },
-  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -1 },
+  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
   emptyState: { alignItems: "center", paddingHorizontal: 40, paddingTop: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },

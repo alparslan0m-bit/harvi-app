@@ -75,12 +75,7 @@ export default function StatsScreen() {
       }
     >
       <View style={styles.headerSection}>
-        <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-          Your performance
-        </Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Statistics
-        </Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
       </View>
 
       {/* Key Metrics */}
@@ -209,8 +204,7 @@ const styles = StyleSheet.create({
   },
   content: {},
   headerSection: { paddingHorizontal: 20, marginBottom: 24 },
-  greeting: { fontSize: 14, fontFamily: "Inter_400Regular", marginBottom: 4 },
-  title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -1 },
+  title: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1 },
   statsGrid: { paddingHorizontal: 20, gap: 10, marginBottom: 20 },
   statsRow: { flexDirection: "row", gap: 10 },
   section: {
