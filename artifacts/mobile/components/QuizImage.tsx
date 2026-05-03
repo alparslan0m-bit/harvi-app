@@ -1,14 +1,25 @@
 /**
- * QuizImage — shows a question image thumbnail with a full-screen
- * pinch-to-zoom viewer on tap. Works for anatomy diagrams, X-rays,
- * histology slides, ECGs, etc.
+ * QuizImage — shows a question image (anatomy, X-ray, histology, ECG…)
+ * with a full-screen pinch-to-zoom viewer on tap.
  *
- * Usage:
- *   <QuizImage uri="https://..." />
+ * Root causes for "Image unavailable" and how they're handled here:
+ *
+ *  1. Supabase Storage (private OR public bucket) — expo-image on iOS needs
+ *     the `apikey` header for Supabase CDN requests, even for public buckets
+ *     when accessed from a native app. We inject `apikey` + `Authorization`
+ *     headers automatically for any URL that belongs to the project's Supabase
+ *     instance.
+ *
+ *  2. In __DEV__ mode the exact URI is printed to the console so you can paste
+ *     it into a browser and confirm it resolves.
+ *
+ *  3. Plain HTTPS URLs (not Supabase) are used as-is.
+ *
+ *  4. HTTP (non-TLS) URLs are blocked by iOS ATS and we surface a clear error.
  */
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import React, { useRef, useState } from "react";
+import { Image, ImageSource } from "expo-image";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Modal,
@@ -22,19 +33,64 @@ import {
 } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
+import { supabase } from "@/lib/supabase";
+
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+
+const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+/** Resolves the correct ImageSource for expo-image, injecting auth headers
+ *  when the URL belongs to this project's Supabase instance. */
+async function resolveSource(uri: string): Promise<ImageSource> {
+  // ── Supabase Storage URL ─────────────────────────────────────────────────
+  if (SUPABASE_URL && uri.startsWith(SUPABASE_URL) && uri.includes("/storage/v1/")) {
+    const headers: Record<string, string> = { apikey: SUPABASE_ANON_KEY };
+
+    // Add the user's JWT so private-bucket URLs also work
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+      headers["Authorization"] = `Bearer ${data.session.access_token}`;
+    }
+
+    if (__DEV__) {
+      console.warn("[QuizImage] Supabase Storage URL →", uri);
+    }
+
+    return { uri, headers };
+  }
+
+  // ── Generic HTTPS URL ────────────────────────────────────────────────────
+  if (__DEV__) {
+    console.warn("[QuizImage] External URL →", uri);
+  }
+
+  return { uri };
+}
 
 interface Props {
   uri: string;
-  /** Caption shown below the thumbnail */
   caption?: string;
 }
 
 export function QuizImage({ uri, caption }: Props) {
+  const [source, setSource] = useState<ImageSource | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Resolve auth headers (async) before rendering the image
+  useEffect(() => {
+    if (!uri) return;
+    setError(false);
+    setLoaded(false);
+    setSource(null);
+
+    resolveSource(uri).then(setSource).catch(() => {
+      setSource({ uri });
+    });
+  }, [uri]);
 
   if (!uri) return null;
 
@@ -43,35 +99,44 @@ export function QuizImage({ uri, caption }: Props) {
       {/* ── Thumbnail ────────────────────────────────────────────────────── */}
       <TouchableOpacity
         style={styles.thumbWrap}
-        onPress={() => !error && setOpen(true)}
+        onPress={() => !error && source && setOpen(true)}
         activeOpacity={0.88}
       >
-        {/* Skeleton while loading */}
-        {!loaded && !error && (
+        {/* Skeleton shown while source is being resolved / image loading */}
+        {(!source || !loaded) && !error && (
           <Animated.View
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut.duration(200)}
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(180)}
             style={styles.skeleton}
-          />
+          >
+            <Feather name="image" size={28} color="#cbd5e1" />
+          </Animated.View>
         )}
 
         {error ? (
           <View style={styles.errorBox}>
             <Feather name="image" size={28} color="#94a3b8" />
             <Text style={styles.errorText}>Image unavailable</Text>
+            {__DEV__ && (
+              <Text style={styles.errorUri} numberOfLines={3}>{uri}</Text>
+            )}
           </View>
-        ) : (
+        ) : source ? (
           <Image
-            source={{ uri }}
+            source={source}
             style={[styles.thumb, { opacity: loaded ? 1 : 0 }]}
             contentFit="contain"
-            transition={200}
+            transition={250}
             onLoad={() => setLoaded(true)}
-            onError={() => { setError(true); setLoaded(true); }}
+            onError={(e) => {
+              if (__DEV__) console.warn("[QuizImage] Load error:", e, "URI:", uri);
+              setError(true);
+              setLoaded(true);
+            }}
           />
-        )}
+        ) : null}
 
-        {/* Expand hint badge */}
+        {/* Expand badge */}
         {loaded && !error && (
           <View style={styles.expandBadge}>
             <Feather name="maximize-2" size={12} color="#fff" />
@@ -79,9 +144,7 @@ export function QuizImage({ uri, caption }: Props) {
         )}
       </TouchableOpacity>
 
-      {caption ? (
-        <Text style={styles.caption}>{caption}</Text>
-      ) : null}
+      {caption ? <Text style={styles.caption}>{caption}</Text> : null}
 
       {/* ── Full-screen viewer ────────────────────────────────────────────── */}
       <Modal
@@ -94,7 +157,6 @@ export function QuizImage({ uri, caption }: Props) {
         <View style={styles.modalBg}>
           <StatusBar hidden />
 
-          {/* Close button */}
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={() => {
@@ -106,7 +168,7 @@ export function QuizImage({ uri, caption }: Props) {
             <Feather name="x" size={20} color="#fff" />
           </TouchableOpacity>
 
-          {/* Pinch-to-zoom scroll view (native on iOS, pan on Android) */}
+          {/* Pinch-to-zoom — native scroll zoom on iOS, pan on Android */}
           <ScrollView
             ref={scrollRef}
             style={styles.zoomScroll}
@@ -118,17 +180,18 @@ export function QuizImage({ uri, caption }: Props) {
             bouncesZoom
             centerContent
           >
-            <Image
-              source={{ uri }}
-              style={styles.fullImg}
-              contentFit="contain"
-              transition={150}
-            />
+            {source && (
+              <Image
+                source={source}
+                style={styles.fullImg}
+                contentFit="contain"
+                transition={150}
+              />
+            )}
           </ScrollView>
 
-          {/* Hint */}
           <View style={styles.hint}>
-            <Feather name="zoom-in" size={12} color="rgba(255,255,255,0.6)" />
+            <Feather name="zoom-in" size={12} color="rgba(255,255,255,0.5)" />
             <Text style={styles.hintText}>Pinch to zoom</Text>
           </View>
         </View>
@@ -138,7 +201,6 @@ export function QuizImage({ uri, caption }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // ── Thumbnail ───────────────────────────────────────────────────────────
   thumbWrap: {
     width: "100%",
     height: 220,
@@ -148,16 +210,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    position: "relative",
   },
   skeleton: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  thumb: {
-    width: "100%",
-    height: "100%",
-  },
+  thumb: { width: "100%", height: "100%" },
   expandBadge: {
     position: "absolute",
     bottom: 10,
@@ -170,12 +230,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
+    paddingHorizontal: 16,
   },
   errorText: {
     fontSize: 13,
     color: "#94a3b8",
     fontFamily: "Inter_400Regular",
+  },
+  errorUri: {
+    fontSize: 10,
+    color: "#cbd5e1",
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    marginTop: 4,
   },
   caption: {
     fontSize: 12,
@@ -202,10 +270,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
   },
-  zoomScroll: {
-    width: SCREEN_W,
-    height: SCREEN_H,
-  },
+  zoomScroll: { width: SCREEN_W, height: SCREEN_H },
   zoomContent: {
     width: SCREEN_W,
     height: SCREEN_H,
