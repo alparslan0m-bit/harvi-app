@@ -93,7 +93,7 @@ export default function ProfileScreen() {
     setFeedbackError(null);
     const { error } = await supabase.from("feedback").insert({
       user_id: user?.id,
-      message: feedbackText.trim(),
+      content: feedbackText.trim(),
     });
     setSubmitting(false);
     if (!error) {
