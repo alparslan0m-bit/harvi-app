@@ -131,11 +131,24 @@ export default function StatsScreen() {
     weekday: "long", day: "numeric", month: "long",
   });
 
-  const weekData = stats?.weekly_activity ?? [
-    { day: "Mon", count: 0 }, { day: "Tue", count: 0 }, { day: "Wed", count: 0 },
-    { day: "Thu", count: 0 }, { day: "Fri", count: 0 }, { day: "Sat", count: 0 },
-    { day: "Sun", count: 0 },
-  ];
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayDow = new Date().getDay();
+  const ZERO_WEEK = DAYS.map((day, i) => ({ day, count: 0, isToday: i === todayDow }));
+
+  // Always have a stats object to render — zeros when no data
+  const displayStats = stats ?? {
+    total_quizzes: 0,
+    total_questions: 0,
+    average_score: 0,
+    best_score: 0,
+    streak: 0,
+    weekly_activity: ZERO_WEEK,
+    subject_mastery: [],
+    recent_results: [],
+  };
+
+  const weekData = displayStats.weekly_activity?.length ? displayStats.weekly_activity : ZERO_WEEK;
+  const isEmpty = displayStats.total_quizzes === 0;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -145,24 +158,14 @@ export default function StatsScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: colors.foreground }]}>Statistics</Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-          {!isOnline && (
-            <View style={[styles.cachePill, { backgroundColor: "#fef3c7" }]}>
-              <Feather name="wifi-off" size={11} color="#92400e" />
-              <Text style={[styles.cacheText, { color: "#92400e" }]}>
-                {pendingCount > 0 ? `Cached · ${pendingCount} pending` : "Cached"}
-              </Text>
-            </View>
-          )}
-          {stats && stats.streak > 0 && (
-            <View style={[styles.streakBadge, { backgroundColor: "#fffbeb" }]}>
-              <Feather name="zap" size={14} color={colors.warning} />
-              <Text style={[styles.streakText, { color: colors.warning }]}>
-                {stats.streak}d
-              </Text>
-            </View>
-          )}
-        </View>
+        {!isOnline && (
+          <View style={[styles.cachePill, { backgroundColor: "#fef3c7", marginBottom: 2 }]}>
+            <Feather name="wifi-off" size={11} color="#92400e" />
+            <Text style={[styles.cacheText, { color: "#92400e" }]}>
+              {pendingCount > 0 ? `Cached · ${pendingCount} pending` : "Cached"}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* ── Loading ───────────────────────────────────────────────────── */}
@@ -183,21 +186,8 @@ export default function StatsScreen() {
         </View>
       )}
 
-      {/* ── Empty ────────────────────────────────────────────────────── */}
-      {!isLoading && !error && (!stats || stats.total_quizzes === 0) && (
-        <View style={styles.center}>
-          <View style={[styles.emptyIcon, { backgroundColor: "#f0f9ff" }]}>
-            <Feather name="bar-chart-2" size={32} color={colors.primary} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No stats yet</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Complete your first quiz to start tracking your performance and progress.
-          </Text>
-        </View>
-      )}
-
-      {/* ── Content ──────────────────────────────────────────────────── */}
-      {!isLoading && !error && stats && stats.total_quizzes > 0 && (
+      {/* ── Content (empty state shows zeroed layout) ────────────────── */}
+      {!isLoading && !error && (
         <ScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
@@ -208,32 +198,32 @@ export default function StatsScreen() {
             <View style={styles.statsRow}>
               <StatCard
                 label="Quizzes"
-                value={stats.total_quizzes ?? 0}
+                value={displayStats.total_quizzes}
                 icon={<Feather name="check-square" size={18} color={colors.primary} />}
                 accent
               />
               <StatCard
                 label="Questions"
-                value={stats.total_questions ?? 0}
+                value={displayStats.total_questions}
                 icon={<Feather name="help-circle" size={18} color={colors.mutedForeground} />}
               />
             </View>
             <View style={styles.statsRow}>
               <StatCard
                 label="Avg Score"
-                value={`${Math.round(stats.average_score ?? 0)}%`}
+                value={`${Math.round(displayStats.average_score)}%`}
                 icon={<Feather name="trending-up" size={18} color={colors.mutedForeground} />}
               />
               <StatCard
                 label="Best Score"
-                value={`${Math.round(stats.best_score ?? 0)}%`}
+                value={`${Math.round(displayStats.best_score)}%`}
                 icon={<Feather name="award" size={18} color={colors.warning} />}
               />
             </View>
           </View>
 
           {/* Streak card */}
-          <StreakCard streak={stats.streak ?? 0} />
+          <StreakCard streak={displayStats.streak} />
 
           {/* Weekly Activity */}
           <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -248,8 +238,8 @@ export default function StatsScreen() {
             </View>
           </View>
 
-          {/* Lecture Mastery */}
-          {stats.subject_mastery && stats.subject_mastery.length > 0 && (
+          {/* Lecture Mastery — hidden when empty */}
+          {displayStats.subject_mastery.length > 0 && (
             <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Pressable style={styles.sectionHeader} onPress={() => router.push("/stats/mastery")}>
                 <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
@@ -257,23 +247,23 @@ export default function StatsScreen() {
                 </Text>
                 <View style={styles.seeAll}>
                   <Text style={[styles.seeAllText, { color: colors.primary }]}>
-                    See all {stats.subject_mastery.length}
+                    See all {displayStats.subject_mastery.length}
                   </Text>
                   <Feather name="chevron-right" size={15} color={colors.primary} />
                 </View>
               </Pressable>
               <View style={{ marginTop: 16 }}>
-                {stats.subject_mastery.slice(0, 3).map((item, i) => (
+                {displayStats.subject_mastery.slice(0, 3).map((item, i) => (
                   <MasteryBar key={i} subject={item.subject} mastery={item.mastery} />
                 ))}
               </View>
-              {stats.subject_mastery.length > 3 && (
+              {displayStats.subject_mastery.length > 3 && (
                 <Pressable
                   style={[styles.moreBtn, { borderColor: colors.border }]}
                   onPress={() => router.push("/stats/mastery")}
                 >
                   <Text style={[styles.moreBtnText, { color: colors.primary }]}>
-                    View {stats.subject_mastery.length - 3} more lectures
+                    View {displayStats.subject_mastery.length - 3} more lectures
                   </Text>
                   <Feather name="arrow-right" size={14} color={colors.primary} />
                 </Pressable>
@@ -281,11 +271,24 @@ export default function StatsScreen() {
             </View>
           )}
 
-          {/* Recent Results */}
-          {stats.recent_results && stats.recent_results.length > 0 && (
+          {/* Empty nudge — shown instead of Recent Results when no quizzes */}
+          {isEmpty && (
+            <View style={[styles.nudgeCard, { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" }]}>
+              <View style={[styles.nudgeIcon, { backgroundColor: colors.primary + "20" }]}>
+                <Feather name="bar-chart-2" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.nudgeTitle, { color: colors.foreground }]}>No stats yet</Text>
+              <Text style={[styles.nudgeText, { color: colors.mutedForeground }]}>
+                Complete your first quiz to start tracking your performance and progress.
+              </Text>
+            </View>
+          )}
+
+          {/* Recent Results — hidden when empty */}
+          {displayStats.recent_results.length > 0 && (
             <View style={styles.recentSection}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Results</Text>
-              {stats.recent_results.slice(0, 10).map((result, i) => (
+              {displayStats.recent_results.slice(0, 10).map((result, i) => (
                 <View
                   key={i}
                   style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -335,6 +338,7 @@ export default function StatsScreen() {
   );
 }
 
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
 
@@ -346,17 +350,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   title: { fontSize: 30, fontFamily: "Inter_700Bold", letterSpacing: -0.8 },
-  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 3 },
-  streakBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 2,
-  },
-  streakText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   cachePill: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20,
@@ -393,7 +386,16 @@ const styles = StyleSheet.create({
 
   weekTotal: { fontSize: 12, fontFamily: "Inter_400Regular" },
 
-  emptyIcon: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  nudgeCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    gap: 10,
+  },
+  nudgeIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  nudgeTitle: { fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: -0.4 },
+  nudgeText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, maxWidth: 260 },
 });
