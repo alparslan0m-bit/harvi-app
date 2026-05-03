@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -141,12 +143,36 @@ export default function StatsScreen() {
       {/* Subject Mastery */}
       {stats.subject_mastery && stats.subject_mastery.length > 0 && (
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Subject Mastery
-          </Text>
-          {stats.subject_mastery.map((item, i) => (
-            <MasteryBar key={i} subject={item.subject} mastery={item.mastery} />
-          ))}
+          <Pressable
+            style={styles.sectionHeader}
+            onPress={() => router.push("/stats/mastery")}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+              Lecture Mastery
+            </Text>
+            <View style={styles.seeAll}>
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                See all {stats.subject_mastery.length}
+              </Text>
+              <Feather name="chevron-right" size={15} color={colors.primary} />
+            </View>
+          </Pressable>
+          <View style={{ marginTop: 16 }}>
+            {stats.subject_mastery.slice(0, 3).map((item, i) => (
+              <MasteryBar key={i} subject={item.subject} mastery={item.mastery} />
+            ))}
+          </View>
+          {stats.subject_mastery.length > 3 && (
+            <Pressable
+              style={[styles.moreBtn, { borderColor: colors.border }]}
+              onPress={() => router.push("/stats/mastery")}
+            >
+              <Text style={[styles.moreBtnText, { color: colors.primary }]}>
+                View {stats.subject_mastery.length - 3} more lectures
+              </Text>
+              <Feather name="arrow-right" size={14} color={colors.primary} />
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -236,6 +262,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     marginBottom: 16,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  seeAll: { flexDirection: "row", alignItems: "center", gap: 2 },
+  seeAllText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  moreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 4,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  moreBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   recentSection: { paddingHorizontal: 20, marginBottom: 16 },
   resultCard: {
     flexDirection: "row",

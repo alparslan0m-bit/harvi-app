@@ -120,8 +120,7 @@ async function fetchStats(userId: string): Promise<UserStats> {
       subject: lectureName(id),
       mastery: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
     }))
-    .sort((a, b) => b.mastery - a.mastery)
-    .slice(0, 6);
+    .sort((a, b) => b.mastery - a.mastery);
 
   // ── Recent results with real lecture names ────────────────────────────────
   const recent_results = rows.slice(0, 10).map((r) => ({
