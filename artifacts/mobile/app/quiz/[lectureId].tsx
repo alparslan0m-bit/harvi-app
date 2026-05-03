@@ -1,9 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,10 +11,17 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  Easing,
+  FadeIn,
   FadeInDown,
+  FadeOut,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -25,11 +31,178 @@ import { useAuth } from "@/context/AuthContext";
 import { useSyncStatus } from "@/context/SyncContext";
 import { useColors } from "@/hooks/useColors";
 import { useQuizQuestions } from "@/hooks/useQuiz";
-import { decryptAnswer } from "@/lib/crypto";
-import { enqueueQuizResult } from "@/lib/offlineQueue";
 import { optimisticallyMarkComplete } from "@/hooks/useProgress";
+import { decryptAnswer } from "@/lib/crypto";
+import { loadQuestionsFromCache } from "@/lib/questionCache";
+import { enqueueQuizResult } from "@/lib/offlineQueue";
 import { supabase } from "@/lib/supabase";
 import { Question } from "@/types";
+
+// ── Medical study tips shown while loading ────────────────────────────────────
+const TIPS = [
+  "Spaced repetition boosts long-term retention by 200%",
+  "Retrieval practice is more effective than re-reading",
+  "Sleep consolidates memories — study before bedtime",
+  "Interleaving topics strengthens pattern recognition",
+  "Active recall outperforms passive review every time",
+  "Short focused sessions beat marathon study hours",
+];
+
+// ── Loading screen ────────────────────────────────────────────────────────────
+function QuizLoadingScreen({ lectureName }: { lectureName?: string }) {
+  const colors = useColors();
+
+  // Pulsing rings
+  const ring1Scale = useSharedValue(1);
+  const ring1Opacity = useSharedValue(0.5);
+  const ring2Scale = useSharedValue(1);
+  const ring2Opacity = useSharedValue(0.3);
+
+  // Icon gentle bob
+  const iconY = useSharedValue(0);
+
+  // Tip rotation
+  const [tipIndex, setTipIndex] = useState(0);
+  const [dots, setDots] = useState(1);
+
+  useEffect(() => {
+    // Ring 1 — pulses outward and fades
+    ring1Scale.value = withRepeat(
+      withTiming(2.2, { duration: 1600, easing: Easing.out(Easing.cubic) }),
+      -1, false
+    );
+    ring1Opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.45, { duration: 200 }),
+        withTiming(0, { duration: 1400 })
+      ),
+      -1, false
+    );
+    // Ring 2 — delayed
+    ring2Scale.value = withDelay(700,
+      withRepeat(
+        withTiming(2.2, { duration: 1600, easing: Easing.out(Easing.cubic) }),
+        -1, false
+      )
+    );
+    ring2Opacity.value = withDelay(700,
+      withRepeat(
+        withSequence(
+          withTiming(0.3, { duration: 200 }),
+          withTiming(0, { duration: 1400 })
+        ),
+        -1, false
+      )
+    );
+    // Icon gentle float
+    iconY.value = withRepeat(
+      withSequence(
+        withTiming(-7, { duration: 950, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 950, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1, false
+    );
+
+    const dotTimer = setInterval(() => setDots((d) => (d % 3) + 1), 450);
+    const tipTimer = setInterval(() => setTipIndex((t) => (t + 1) % TIPS.length), 3200);
+    return () => { clearInterval(dotTimer); clearInterval(tipTimer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ring1Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring1Scale.value }],
+    opacity: ring1Opacity.value,
+  }));
+  const ring2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring2Scale.value }],
+    opacity: ring2Opacity.value,
+  }));
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: iconY.value }],
+  }));
+
+  return (
+    <View style={[loadStyles.root, { backgroundColor: colors.background }]}>
+      {/* Pulsing rings */}
+      <View style={loadStyles.ringWrap}>
+        <Animated.View style={[loadStyles.ring, { borderColor: colors.primary }, ring1Style]} />
+        <Animated.View style={[loadStyles.ring, { borderColor: colors.primary }, ring2Style]} />
+
+        {/* Zap icon */}
+        <Animated.View style={iconStyle}>
+          <View style={[loadStyles.iconBox, { backgroundColor: colors.primary }]}>
+            <Feather name="zap" size={34} color="#fff" />
+          </View>
+        </Animated.View>
+      </View>
+
+      {/* Text group */}
+      <Animated.View entering={FadeIn.delay(200).duration(500)} style={loadStyles.textGroup}>
+        <Text style={[loadStyles.title, { color: colors.foreground }]}>Warming Engines</Text>
+        {lectureName ? (
+          <Text style={[loadStyles.subtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {lectureName}
+          </Text>
+        ) : null}
+        <Text style={[loadStyles.dots, { color: colors.primary }]}>
+          {"●".repeat(dots) + "○".repeat(3 - dots)}
+        </Text>
+      </Animated.View>
+
+      {/* Rotating tip card */}
+      <Animated.View
+        key={tipIndex}
+        entering={FadeInDown.duration(400).springify()}
+        exiting={FadeOut.duration(200)}
+        style={[loadStyles.tipCard, { backgroundColor: colors.muted, borderColor: colors.border }]}
+      >
+        <Feather name="book-open" size={13} color={colors.primary} />
+        <Text style={[loadStyles.tipText, { color: colors.mutedForeground }]}>
+          {TIPS[tipIndex]}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+const loadStyles = StyleSheet.create({
+  root: { flex: 1, alignItems: "center", justifyContent: "center", gap: 32, paddingHorizontal: 32 },
+  ringWrap: { width: 88, height: 88, alignItems: "center", justifyContent: "center" },
+  ring: {
+    position: "absolute",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+  },
+  iconBox: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0ea5e9",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  textGroup: { alignItems: "center", gap: 6 },
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", letterSpacing: -0.7 },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", maxWidth: 240, textAlign: "center" },
+  dots: { fontSize: 10, letterSpacing: 4, marginTop: 4 },
+  tipCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+    width: "100%",
+  },
+  tipText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19, letterSpacing: -0.1 },
+});
 
 interface AnsweredState {
   selected: number;
@@ -99,9 +272,23 @@ export default function QuizScreen() {
   const queryClient = useQueryClient();
   const { lectureId, lectureName } = useLocalSearchParams<{ lectureId: string; lectureName: string }>();
   const { user } = useAuth();
-  const { data: questions, isLoading, error } = useQuizQuestions(lectureId);
-
   const { isOnline } = useSyncStatus();
+
+  // ── Fast path: pre-load from AsyncStorage before RQ resolves ─────────────
+  const [cachedQuestions, setCachedQuestions] = useState<Question[] | undefined>();
+  const [cacheChecked, setCacheChecked] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    loadQuestionsFromCache(lectureId).then((hit) => {
+      if (!mountedRef.current) return;
+      if (hit?.questions.length) setCachedQuestions(hit.questions);
+      setCacheChecked(true);
+    });
+    return () => { mountedRef.current = false; };
+  }, [lectureId]);
+
+  const { data: questions, isLoading, error } = useQuizQuestions(lectureId, cachedQuestions);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answered, setAnswered] = useState<AnsweredState | null>(null);
@@ -214,17 +401,9 @@ export default function QuizScreen() {
   }, []);
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <View style={[styles.centerScreen, { backgroundColor: colors.background }]}>
-        <View style={[styles.warmingIcon, { backgroundColor: colors.primary }]}>
-          <Feather name="zap" size={32} color="#fff" />
-        </View>
-        <Text style={[styles.warmingTitle, { color: colors.foreground }]}>Warming Engines</Text>
-        <Text style={[styles.warmingText, { color: colors.mutedForeground }]}>Loading your questions...</Text>
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
-      </View>
-    );
+  // Show loading only if: cache check not done yet, OR no cached data and RQ still loading
+  if (!cacheChecked || (isLoading && !questions)) {
+    return <QuizLoadingScreen lectureName={lectureName} />;
   }
 
   // ── Error / empty ──────────────────────────────────────────────────────────

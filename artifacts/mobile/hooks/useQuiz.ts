@@ -164,7 +164,7 @@ export async function fetchQuestions(lectureId: string): Promise<Question[]> {
   return [];
 }
 
-export function useQuizQuestions(lectureId: string) {
+export function useQuizQuestions(lectureId: string, initialData?: Question[]) {
   return useQuery({
     queryKey: ["quiz", lectureId],
     queryFn: async () => {
@@ -189,8 +189,14 @@ export function useQuizQuestions(lectureId: string) {
     },
     enabled: !!lectureId,
     retry: 0,
-    gcTime: 0,    // don't keep in RQ memory — always load fresh or from cache
+    // Keep questions in memory for 5 min — navigating back to the same
+    // lecture within a session skips the loading screen entirely.
+    gcTime: 5 * 60 * 1000,
     staleTime: 0,
     networkMode: "offlineFirst",
+    // Pre-populated from AsyncStorage before query resolves → instant open
+    initialData: initialData && initialData.length > 0 ? initialData : undefined,
+    // Treat as stale so a fresh fetch still happens in the background
+    initialDataUpdatedAt: 0,
   });
 }
