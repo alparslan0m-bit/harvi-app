@@ -1,13 +1,14 @@
 /**
  * useStats — aggregates quiz_results into dashboard metrics.
  *
- * Offline-first:
- *  - On success   → writes full UserStats to AsyncStorage
- *  - On net error → serves the last AsyncStorage snapshot
- *  - Pending offline queue results are merged into subject_mastery
- *    and recent_results so the UI is always up to date, even offline.
+ * Offline-first (instant):
+ *  - Module-level memCache gives synchronous initialData on every mount
+ *  - NetInfo check skips Supabase entirely when offline (no timeout wait)
+ *  - On success   → writes full UserStats to AsyncStorage + memCache
+ *  - On net error → serves last AsyncStorage snapshot + merges queue
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import { useQuery } from "@tanstack/react-query";
 
 import { getQueue } from "@/lib/offlineQueue";
@@ -16,7 +17,10 @@ import { UserStats } from "@/types";
 
 const CACHE_KEY = (uid: string) => `harvi:stats:${uid}`;
 
-// ── AsyncStorage helpers ────────────────────────────────────────────────────
+// ── Module-level memory cache (survives re-renders, cleared on app restart) ──
+const memCache = new Map<string, UserStats>();
+
+// ── AsyncStorage helpers ─────────────────────────────────────────────────────
 
 async function readCache(userId: string): Promise<UserStats | null> {
   try {
@@ -31,12 +35,25 @@ async function readCache(userId: string): Promise<UserStats | null> {
 async function writeCache(userId: string, data: UserStats): Promise<void> {
   try {
     await AsyncStorage.setItem(CACHE_KEY(userId), JSON.stringify(data));
+    memCache.set(userId, data);
   } catch {
     // silently ignore write errors
   }
 }
 
-// ── Constants ───────────────────────────────────────────────────────────────
+// ── Warm memory cache from AsyncStorage (called once per session) ────────────
+
+const warmed = new Set<string>();
+async function warmMemCache(userId: string): Promise<void> {
+  if (warmed.has(userId)) return;
+  warmed.add(userId);
+  const cached = await readCache(userId);
+  if (cached && !memCache.has(userId)) {
+    memCache.set(userId, cached);
+  }
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -51,7 +68,7 @@ const ZERO_STATS: UserStats = {
   recent_results: [],
 };
 
-// ── Lecture name map ────────────────────────────────────────────────────────
+// ── Lecture name map ─────────────────────────────────────────────────────────
 
 async function buildLectureNameMap(): Promise<Map<string, string>> {
   const { data, error } = await supabase.from("lectures").select("id, name");
@@ -66,7 +83,7 @@ async function buildLectureNameMap(): Promise<Map<string, string>> {
   return map;
 }
 
-// ── Core computation ────────────────────────────────────────────────────────
+// ── Core computation ─────────────────────────────────────────────────────────
 
 type RawRow = {
   id: string;
@@ -90,7 +107,6 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
   const best_score = Math.max(...rows.map((r) => r.score ?? 0));
 
   // ── Streak (robust) ───────────────────────────────────────────────────────
-  // Normalise every result to a midnight UTC+local timestamp, deduplicate, sort desc.
   const DAY_MS = 86_400_000;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -104,17 +120,15 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
         return d.getTime();
       })
     ),
-  ].sort((a, b) => b - a); // most recent first
+  ].sort((a, b) => b - a);
 
   let streak = 0;
   if (dayTimestamps.length > 0) {
     const mostRecent = dayTimestamps[0];
-    // Streak is alive if the user studied today OR yesterday (haven't broken it yet today)
     const startFromToday = mostRecent === todayMs;
     const startFromYesterday = mostRecent === todayMs - DAY_MS;
 
     if (startFromToday || startFromYesterday) {
-      // Walk backwards: each consecutive day adds 1
       const offsetStart = startFromToday ? 0 : 1;
       for (let i = 0; i < dayTimestamps.length; i++) {
         const expected = todayMs - (offsetStart + i) * DAY_MS;
@@ -124,8 +138,7 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
     }
   }
 
-  // ── Weekly activity ────────────────────────────────────────────────────────
-  // Start of current week (Sunday = 0)
+  // ── Weekly activity ───────────────────────────────────────────────────────
   const weekStart = new Date(todayMs);
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const weekStartMs = weekStart.getTime();
@@ -139,7 +152,7 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
       countByDay[day] = (countByDay[day] ?? 0) + 1;
     }
   });
-  const todayDow = new Date().getDay(); // 0=Sun … 6=Sat
+  const todayDow = new Date().getDay();
   const weekly_activity = DAYS.map((day, i) => ({
     day,
     count: countByDay[i] ?? 0,
@@ -184,12 +197,71 @@ function computeStats(rows: RawRow[], lectureMap: Map<string, string>): UserStat
   };
 }
 
-// ── Fetch ───────────────────────────────────────────────────────────────────
+// ── Offline path (shared) ────────────────────────────────────────────────────
+
+async function serveFromCache(userId: string): Promise<UserStats> {
+  const [cached, queue] = await Promise.all([
+    readCache(userId),
+    getQueue(),
+  ]);
+  const pending = queue.filter((q) => q.userId === userId);
+
+  if (!cached && pending.length === 0) return ZERO_STATS;
+
+  const base = cached ?? ZERO_STATS;
+
+  // Update memCache with fresh cache read
+  if (cached) memCache.set(userId, cached);
+
+  if (pending.length === 0) return base;
+
+  // Merge queued results into cached snapshot
+  const syntheticRows: RawRow[] = pending.map((q) => ({
+    id: q.localId,
+    user_id: q.userId,
+    lecture_id: q.lectureId,
+    score: q.score,
+    total_questions: q.totalQuestions,
+    correct_answers: q.correctAnswers,
+    created_at: q.createdAt,
+  }));
+
+  const cachedRows: RawRow[] = (base.recent_results ?? []).map((r) => ({
+    id: r.id,
+    user_id: r.user_id,
+    lecture_id: r.lecture_id,
+    score: r.score,
+    total_questions: r.total_questions,
+    correct_answers: r.correct_answers,
+    created_at: r.created_at,
+  }));
+
+  const mergedRows = [...syntheticRows, ...cachedRows].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  const localMap = new Map<string, string>();
+  base.recent_results?.forEach((r) => localMap.set(r.lecture_id, r.lecture_name));
+
+  return computeStats(mergedRows, localMap);
+}
+
+// ── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchStats(userId: string): Promise<UserStats> {
+  // ── Fast offline short-circuit ─────────────────────────────────────────
+  // Check connectivity BEFORE attempting any network call.
+  // This avoids waiting for Supabase's network timeout (can be 5-30s).
+  const net = await NetInfo.fetch();
+  const isOnline = (net.isConnected ?? false) && net.isInternetReachable !== false;
+
+  if (!isOnline) {
+    return serveFromCache(userId);
+  }
+
+  // ── Online path ────────────────────────────────────────────────────────
   let rows: RawRow[] = [];
   let lectureMap = new Map<string, string>();
-  let fromCache = false;
 
   try {
     const [quizRes, map] = await Promise.all([
@@ -205,51 +277,11 @@ async function fetchStats(userId: string): Promise<UserStats> {
     rows = (quizRes.data ?? []) as RawRow[];
     lectureMap = map;
   } catch {
-    // Offline / error — fall back to snapshot + merge queue
-    const cached = await readCache(userId);
-
-    const queue = await getQueue();
-    const pending = queue.filter((q) => q.userId === userId);
-
-    if (!cached && pending.length === 0) return ZERO_STATS;
-
-    const base = cached ?? ZERO_STATS;
-    if (pending.length === 0) return base;
-
-    // Merge queued results into cached snapshot
-    const syntheticRows: RawRow[] = pending.map((q) => ({
-      id: q.localId,
-      user_id: q.userId,
-      lecture_id: q.lectureId,
-      score: q.score,
-      total_questions: q.totalQuestions,
-      correct_answers: q.correctAnswers,
-      created_at: q.createdAt,
-    }));
-
-    // Re-compute from cached recent_results + synthetic rows
-    const cachedRows: RawRow[] = (base.recent_results ?? []).map((r) => ({
-      id: r.id,
-      user_id: r.user_id,
-      lecture_id: r.lecture_id,
-      score: r.score,
-      total_questions: r.total_questions,
-      correct_answers: r.correct_answers,
-      created_at: r.created_at,
-    }));
-
-    const mergedRows = [...syntheticRows, ...cachedRows].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
-    // Use cached lecture names for known IDs
-    const localMap = new Map<string, string>();
-    base.recent_results?.forEach((r) => localMap.set(r.lecture_id, r.lecture_name));
-
-    return computeStats(mergedRows, localMap);
+    // Network error mid-request — fall back to cache
+    return serveFromCache(userId);
   }
 
-  // ── Online success: merge still-queued items ────────────────────────────
+  // Merge still-queued items (submitted but not yet synced)
   const queue = await getQueue();
   const pending = queue.filter((q) => q.userId === userId);
 
@@ -270,18 +302,30 @@ async function fetchStats(userId: string): Promise<UserStats> {
 
   const result = computeStats(rows, lectureMap);
 
-  // Persist for offline use
+  // Persist for offline use (also updates memCache)
   writeCache(userId, result);
   return result;
 }
 
-// ── Hook ────────────────────────────────────────────────────────────────────
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useStats(userId: string | undefined) {
+  // Kick off async warm of memCache on first call for this user.
+  // By the time they navigate to the stats tab, memCache will be populated.
+  if (userId && !warmed.has(userId)) {
+    warmMemCache(userId);
+  }
+
+  const memData = userId ? memCache.get(userId) : undefined;
+
   return useQuery({
     queryKey: ["stats", userId],
     queryFn: () => fetchStats(userId!),
     enabled: !!userId,
+    // Serve last-known data synchronously — no loading spinner on re-visits
+    initialData: memData,
+    // Treat initialData as stale so a background refresh still runs
+    initialDataUpdatedAt: memData ? Date.now() - 1000 * 60 * 11 : undefined,
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 60 * 24,
     networkMode: "offlineFirst",
