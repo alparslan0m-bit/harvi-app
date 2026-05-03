@@ -39,7 +39,7 @@ export default function ProfileScreen() {
   const [avatarId, setAvatarId] = useState<AvatarId | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [editingName, setEditingName] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const nameInputRef = useRef<TextInput>(null);
 
@@ -69,23 +69,18 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const startEditingName = () => {
+  const openEditMode = () => {
     setNameInput(displayName);
-    setEditingName(true);
+    setEditMode(true);
     setTimeout(() => nameInputRef.current?.focus(), 80);
   };
 
-  const saveName = () => {
+  const closeEditMode = () => {
     const trimmed = nameInput.trim();
     setDisplayName(trimmed);
     AsyncStorage.setItem(NAME_KEY, trimmed);
-    setEditingName(false);
+    setEditMode(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const cancelEditName = () => {
-    setEditingName(false);
-    setNameInput(displayName);
   };
 
   const FEEDBACK_MIN = 10;
@@ -192,85 +187,79 @@ export default function ProfileScreen() {
         {/* ── Hero avatar card ─────────────────────────────────────────── */}
         <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-          {/* Tappable avatar */}
+          {/* Edit / Done toggle — top-right corner */}
           <TouchableOpacity
-            onPress={() => setPickerVisible(true)}
-            activeOpacity={0.85}
+            style={[styles.editToggle, {
+              backgroundColor: editMode ? colors.primary : colors.muted,
+            }]}
+            onPress={editMode ? closeEditMode : openEditMode}
+            activeOpacity={0.8}
+          >
+            <Feather
+              name={editMode ? "check" : "edit-2"}
+              size={13}
+              color={editMode ? "#fff" : colors.mutedForeground}
+            />
+            <Text style={[styles.editToggleText, {
+              color: editMode ? "#fff" : colors.mutedForeground,
+            }]}>
+              {editMode ? "Done" : "Edit"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Avatar */}
+          <TouchableOpacity
+            onPress={editMode ? () => setPickerVisible(true) : undefined}
+            activeOpacity={editMode ? 0.8 : 1}
             style={styles.avatarWrap}
           >
-            {avatarId ? (
-              /* Doctor illustration */
-              <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
+            <View style={[styles.avatarRing, {
+              borderColor: editMode ? colors.primary : colors.primary + "30",
+            }]}>
+              {avatarId ? (
                 <View style={[styles.avatarIllustration, { backgroundColor: "#f0f9ff" }]}>
                   <AvatarById id={avatarId} size={76} />
                 </View>
-              </View>
-            ) : (
-              /* Fallback initial */
-              <View style={[styles.avatarRing, { borderColor: colors.primary + "40" }]}>
+              ) : (
                 <View style={[styles.avatarInitial, { backgroundColor: colors.primary }]}>
                   <Text style={styles.avatarInitialText}>{initial}</Text>
                 </View>
+              )}
+            </View>
+            {/* Camera badge — only in edit mode */}
+            {editMode && (
+              <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.card }]}>
+                <Feather name="camera" size={10} color="#fff" />
               </View>
             )}
-
-            {/* Edit badge */}
-            <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
-              <Feather name="edit-2" size={10} color="#fff" />
-            </View>
           </TouchableOpacity>
 
-          {/* ── Display name (inline editable) ── */}
-          {editingName ? (
-            <View style={styles.nameEditRow}>
-              <TextInput
-                ref={nameInputRef}
-                style={[styles.nameInput, {
-                  color: colors.foreground,
-                  borderColor: colors.primary,
-                  backgroundColor: colors.background,
-                }]}
-                value={nameInput}
-                onChangeText={setNameInput}
-                placeholder="Your name"
-                placeholderTextColor={colors.mutedForeground}
-                returnKeyType="done"
-                onSubmitEditing={saveName}
-                maxLength={40}
-                autoCapitalize="words"
-              />
-              <TouchableOpacity
-                style={[styles.nameBtn, { backgroundColor: colors.primary }]}
-                onPress={saveName}
-                activeOpacity={0.8}
-              >
-                <Feather name="check" size={14} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.nameBtn, { backgroundColor: colors.muted }]}
-                onPress={cancelEditName}
-                activeOpacity={0.8}
-              >
-                <Feather name="x" size={14} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            </View>
+          {/* Name */}
+          {editMode ? (
+            <TextInput
+              ref={nameInputRef}
+              style={[styles.nameInput, {
+                color: colors.foreground,
+                borderColor: colors.primary + "60",
+                backgroundColor: colors.background,
+              }]}
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="Your name"
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="done"
+              onSubmitEditing={closeEditMode}
+              maxLength={40}
+              autoCapitalize="words"
+              textAlign="center"
+            />
           ) : (
-            <TouchableOpacity
-              style={styles.nameDisplayRow}
-              onPress={startEditingName}
-              activeOpacity={0.75}
-            >
-              {displayName ? (
-                <Text style={[styles.heroName, { color: colors.foreground }]} numberOfLines={1}>
-                  {displayName}
-                </Text>
-              ) : (
-                <Text style={[styles.heroNamePlaceholder, { color: colors.mutedForeground }]}>
-                  Add your name
-                </Text>
-              )}
-              <Feather name="edit-3" size={13} color={colors.mutedForeground} style={{ marginLeft: 6 }} />
-            </TouchableOpacity>
+            <Text style={[
+              displayName ? styles.heroName : styles.heroNamePlaceholder,
+              { color: displayName ? colors.foreground : colors.mutedForeground },
+            ]} numberOfLines={1}>
+              {displayName || "Tap Edit to add your name"}
+            </Text>
           )}
 
           {/* Email */}
@@ -280,7 +269,7 @@ export default function ProfileScreen() {
 
           {/* Member pill */}
           {memberSince && (
-            <View style={[styles.memberPill, { backgroundColor: colors.primary + "14" }]}>
+            <View style={[styles.memberPill, { backgroundColor: colors.primary + "12" }]}>
               <Feather name="calendar" size={11} color={colors.primary} />
               <Text style={[styles.memberPillText, { color: colors.primary }]}>
                 Member since {memberSince}
@@ -288,12 +277,12 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* Change avatar hint */}
-          <TouchableOpacity onPress={() => setPickerVisible(true)} activeOpacity={0.7}>
-            <Text style={[styles.changeAvatarHint, { color: colors.mutedForeground }]}>
-              Tap avatar to change
+          {/* Hint shown only in edit mode */}
+          {editMode && (
+            <Text style={[styles.editHint, { color: colors.mutedForeground }]}>
+              Tap avatar to change photo
             </Text>
-          </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Feedback ────────────────────────────────────────────────── */}
@@ -453,32 +442,44 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     alignItems: "center",
-    paddingVertical: 28,
+    paddingTop: 20,
+    paddingBottom: 28,
     paddingHorizontal: 24,
     marginBottom: 28,
-    gap: 8,
+    gap: 6,
   },
-  avatarWrap: { position: "relative", marginBottom: 4 },
+  editToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  editToggleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  avatarWrap: { position: "relative", marginBottom: 6 },
   avatarRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 3,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2.5,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarIllustration: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   avatarInitial: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -487,54 +488,36 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 2,
     right: 2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2.5,
     alignItems: "center",
     justifyContent: "center",
-  },
-  /* Name editing */
-  nameDisplayRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 2,
   },
   heroName: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.5,
+    marginTop: 2,
   },
   heroNamePlaceholder: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Inter_400Regular",
     fontStyle: "italic",
-  },
-  nameEditRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    width: "100%",
-    paddingHorizontal: 4,
+    marginTop: 2,
   },
   nameInput: {
-    flex: 1,
+    width: "100%",
     borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 15,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
     fontFamily: "Inter_500Medium",
+    marginTop: 4,
   },
-  nameBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", letterSpacing: -0.1 },
+  heroEmail: { fontSize: 13, fontFamily: "Inter_400Regular", letterSpacing: -0.1, marginTop: 2 },
   memberPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -542,10 +525,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    marginTop: 2,
+    marginTop: 4,
   },
   memberPillText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  changeAvatarHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  editHint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 6 },
 
   /* Section label */
   sectionLabel: {
