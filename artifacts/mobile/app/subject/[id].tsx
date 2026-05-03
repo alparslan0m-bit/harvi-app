@@ -77,7 +77,7 @@ export default function SubjectScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/quiz/[lectureId]",
-                  params: { lectureId: lec.external_id ?? lec.id, lectureName: lec.name },
+                  params: { lectureId: lec.id, lectureName: lec.name },
                 })
               }
             />

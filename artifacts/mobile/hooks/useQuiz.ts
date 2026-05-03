@@ -35,8 +35,8 @@ async function fetchQuestions(lectureId: string): Promise<Question[]> {
       .eq(fkCol, lectureId);
 
     if (error) {
-      // Column doesn't exist (42703) — try next
-      if (error.code === "42703") continue;
+      // Column doesn't exist (42703) or invalid type for column (22P02) — try next FK
+      if (error.code === "42703" || error.code === "22P02") continue;
       // Other error — throw with useful message
       throw new Error(`questions table: ${error.message} (code: ${error.code})`);
     }
